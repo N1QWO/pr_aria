@@ -31,7 +31,7 @@ pip install -r requirements.txt
 │ │ └── test_1.ipynb  Пример использования и тестирование модели с квантовыми преобразованиями<br>
 │ └── RNN<br>
 │ ├── model.py  Определение модели RNN<br>
-│ └── test_1.ipynb # Пример использования и тестирование модели RNN<br>
+│ └── test_1.ipynb  Пример использования и тестирование модели RNN<br>
 │<br>
 ├── data_preparation.py  Подготовка данных<br>
 ├── show_analysis.py  Визуализация результатов<br>
