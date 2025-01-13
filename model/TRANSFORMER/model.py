@@ -119,9 +119,6 @@ class FeedForwardRegression(nn.Module):
         x = self.fc3(x)
         return x
 
-
-
-
 class Transformer(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, num_heads: int, num_layers: int, dropout: float = 0.1, device: torch.device | str ='cpu'):
         """

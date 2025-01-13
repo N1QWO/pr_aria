@@ -255,8 +255,6 @@ class ImprovedRegressionNN(nn.Module):
         
         return x
 
-
-
 class THdLin(nn.Module):
     
     def __init__(self, in_, out_,hid = 64,hid2 = 32,hid3=100,device='cpu'):
