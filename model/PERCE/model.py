@@ -4,6 +4,65 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 
+class Bl(nn.Module):
+    
+    def __init__(self, in_, out_,hid = 64,hid2 = 32,device='cpu'):
+        
+        super(Bl, self).__init__()
+        self.device = device
+
+        self.fc11 = nn.Linear(in_, hid)
+        self.fc11_b = nn.Parameter(torch.zeros(hid))
+        self.fc11_activation = nn.LeakyReLU(negative_slope=0.1)
+
+        self.cla = nn.Linear(in_, hid)
+        self.cla_b = nn.Parameter(torch.zeros(hid))
+
+        self.fc12 = nn.Linear(in_, hid)
+        self.fc12_b = nn.Parameter(torch.zeros(hid))
+
+        self.fc3 = nn.Linear(hid, hid2)
+        self.fc3_b = nn.Parameter(torch.zeros(hid2))
+
+        self.fc4 = nn.Linear(hid2, out_)
+        self.layer_norm = nn.LayerNorm(hid2).to(self.device)
+        self.dropout = nn.Dropout(p=0.35)
+
+        self.mxp = nn.MaxPool1d(kernel_size=int(hid//hid2))
+        
+    def short_cla_module(self, input):
+        short = self.fc12(input) + self.fc12_b #128
+        short2 = self.fc3(short) + self.fc3_b#32
+        cust = torch.tanh(short2-torch.mean(short2))*short2 #32
+        
+        cust = self.layer_norm(cust)
+        
+        return cust
+        
+    
+    def long_cla_module(self, input):
+        long = self.fc11_activation(self.fc11(input) + self.fc11_b)
+        long = self.dropout(long)
+        
+        cla = torch.sigmoid(self.cla(input) + self.cla_b)
+
+        return long * cla
+    
+
+    def forward(self, input):
+        al = self.long_cla_module(input)
+
+        cust = self.short_cla_module(input)
+        
+        cust = self.dropout(cust)
+
+        al = al.unsqueeze(1)  
+        maxp = self.mxp(al).squeeze(1) 
+
+        re = self.fc4(cust * maxp)
+        return re
+
+
 
 class three_layer(nn.Module):
     
@@ -198,10 +257,57 @@ class ImprovedRegressionNN(nn.Module):
         
         return x
 
+
+
+class THdLin(nn.Module):
+    
+    def __init__(self, in_, out_,hid = 64,hid2 = 32,hid3=100,device='cpu'):
+        
+        super(THdLin, self).__init__()
+        self.device = device
+
+        self.fc11 = nn.Linear(in_, hid)
+        self.fc11_b = nn.Parameter(torch.zeros(hid))
+
+        self.fc12 = nn.Linear(hid, hid2)
+        self.fc12_b = nn.Parameter(torch.zeros(hid2))
+
+
+        self.dp1 = nn.Dropout(0.3)
+
+        self.fc13 = nn.Linear(hid2, hid3)
+        self.fc13_b = nn.Parameter(torch.zeros(hid3))
+        self.bn =nn.LayerNorm(hid3)
+        
+        self.dp2 = nn.Dropout(0.3)
+        self.fc14 = nn.Linear(hid3, out_)
+        # self.bn2 =nn.BatchNorm1d(hid4)
+
+
+    
+
+    def forward(self, input):
+        f1 = self.fc11(input) + self.fc11_b
+        f2 = F.relu(self.fc12(f1) + self.fc12_b)
+
+        dp1 = self.dp1(f2)
+        
+        f3 = self.fc13(dp1) + self.fc13_b
+        bn = self.bn(f3)
+
+        dp2 = self.dp2(bn)
+        f4 = self.fc14(dp2)
+        # bn2 = self.bn2(f4)
+
+
+        return f4
+
+
 class AdaptiveLoss(nn.Module):
     def __init__(self, delta: float = 0.01):
         super(AdaptiveLoss, self).__init__()
         self.loss = nn.HuberLoss(delta=delta)
+        self.loss_tube = None
         #self.mse = nn.MSELoss()
         
     def forward(self, pred: torch.tensor, target: torch.tensor) -> dict:
@@ -210,10 +316,11 @@ class AdaptiveLoss(nn.Module):
         
         # MAPE для мониторинга
         mape = torch.abs(target - pred) / torch.clamp(target, min=1e-7)
-        
+        per_loss_rd = (mape < 0.01 * self.loss_tube).sum() / (mape.numel())
         return {
             'main_loss': main_loss,
             'mape': torch.mean(mape),
+            'tube': per_loss_rd
         }    
 
 class Trainer:
@@ -265,26 +372,24 @@ class Trainer:
         with torch.no_grad():
             # В режиме eval модель возвращает только предсказания
             y_pred  = self.model(X)
-            # Создаем фиктивные quantum_states для criterion
-            #dummy_states = [torch.zeros_like(y_pred).unsqueeze(0)]
             metrics = self.criterion(y_pred, y)
             
-            loss_rd = torch.abs(y - y_pred) / torch.clamp(y, min=1e-7)
-            #print('2')
-            per_loss_rd = (loss_rd < 0.01 * loss_tube).sum().item() / (loss_rd.numel())
-            #print('3')
         
         self.model.train()
-        return metrics, per_loss_rd
+        return metrics
 
     def fit(self, X: torch.Tensor, y: torch.Tensor, X_t: torch.Tensor, y_t: torch.Tensor, batch_size: int = 512, epochs:int = 100, loss_tube: int = 5) -> dict:
         self.model.to(self.device)
+        self.criterion.loss_tube = loss_tube
         X = X.to(self.device)
         y = y.to(self.device)
         X_t = X_t.to(self.device)
         y_t = y_t.to(self.device)
         scheduler = self.create_scheduler()
+        best_test_mape = float('inf')
+        best_model_weights = None
         
+
         history = {
             'train_main_loss': [],
             'train_mape': [],
@@ -304,9 +409,13 @@ class Trainer:
             history['train_mape'].append(train_metrics['mape'])
             
             # Оценка на тестовых данных
-            test_metrics, test_tube = self.evaluate(X_t, y_t, loss_tube)
+            test_metrics = self.evaluate(X_t, y_t, loss_tube)
             history['test_mape'].append(test_metrics['mape'].item())
-            history['test_tube'].append(test_tube)
+            history['test_tube'].append(test_metrics['tube'].item())
+
+            if (test_metrics['tube'].item() +  train_metrics['mape'])/2 < best_test_mape:
+                best_test_mape = (test_metrics['tube'].item() +  train_metrics['mape'])/2
+                best_model_weights = self.model.state_dict().copy()
             
             # Вывод прогресса
             if (epoch + 1) % 40 == 0 or epoch == 9:
@@ -315,7 +424,7 @@ class Trainer:
                     f'Main: {train_metrics["main_loss"]:.6f}, '
                     f'MAPE: {train_metrics["mape"]:.6f}\n'
                     f'Test - MAPE: {test_metrics["mape"]:.6f}, '
-                    f'Tube: {test_tube:.6f}'
+                    f'Tube: {test_metrics["tube"]:.6f}'
                 )
-        
+        torch.save(best_model_weights, 'best_model_weights.pth')
         return history

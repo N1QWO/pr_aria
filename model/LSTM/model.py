@@ -35,9 +35,7 @@ class CustomLSTMCell(nn.Module):
         i_t = torch.sigmoid(self.W_i(combined)/self.sqrt_h)
         #print(i_t.shape)
         o_t = torch.sigmoid(self.W_o(combined)/self.sqrt_h)
-        #print(o_t.shape)
-
-        #print('2.2')
+        
         # Вместо tanh используем KANLayer для вычисления кандидата скрытого состояния
         #c_tilde = self.KAN(self.W_c(combined))
         c_tilde = torch.tanh(self.W_c(combined)/self.sqrt_h)
@@ -89,6 +87,7 @@ class RnnAdaptiveLoss(nn.Module):
     def __init__(self, delta=0.01):
         super(RnnAdaptiveLoss, self).__init__()
         self.loss = nn.HuberLoss(delta=delta)
+        self.loss_tube = None
         #self.mse = nn.MSELoss()
         
     def forward(self, pred, target):
@@ -97,19 +96,22 @@ class RnnAdaptiveLoss(nn.Module):
         
         # MAPE для мониторинга
         mape = torch.abs(target - pred) / torch.clamp(target, min=1e-7)
-        
+        per_loss_rd = (mape < 0.01 * self.loss_tube).sum() / (mape.numel())   
+
         return {
             'main_loss': main_loss,
             'mape': torch.mean(mape),
-        }    
+            'tube': per_loss_rd
+        }   
+
 
 class RNNTrainer:
-    def __init__(self, model, learning_rate=0.001, device='cpu'):
+    def __init__(self, model, learning_rate=0.001, inf_per_epoch=100,device='cpu',):
         self.model = model.to(device)
         self.device = device
         self.criterion = RnnAdaptiveLoss()  # Используем MSELoss + Hyber 
         self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
-
+        self.inf_per_epoch = 100
     def create_scheduler(self):
         # Пример создания планировщика
         return optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.1)
@@ -123,6 +125,7 @@ class RNNTrainer:
         epoch_metrics = {
             'main_loss': 0.0,
             'mape': 0.0,
+            'tube': 0.0
         }
         n_batches = 0
         
@@ -156,22 +159,22 @@ class RNNTrainer:
             #dummy_states = [torch.zeros_like(y_pred).unsqueeze(0)]
             metrics = self.criterion(y_pred, y)
             
-            loss_rd = torch.abs(y - y_pred) / torch.clamp(y, min=1e-7)
-            #print('2')
-            per_loss_rd = (loss_rd < 0.01 * loss_tube).sum().item() / (loss_rd.numel())
+            
             #print('3')
         
         self.model.train()
-        return metrics, per_loss_rd
+        return metrics
 
     def fit(self, X: torch.Tensor, y: torch.Tensor, X_t: torch.Tensor, y_t: torch.Tensor, batch_size: int = 512, epochs:int = 100, loss_tube: int = 5):
         self.model.to(self.device)
+        self.criterion.loss_tube = loss_tube
         X = X.to(self.device)
         y = y.to(self.device)
         X_t = X_t.to(self.device)
         y_t = y_t.to(self.device)
         scheduler = self.create_scheduler()
-        
+        best_test_mape = float('inf')
+        best_model_weights = None
         history = {
             'train_main_loss': [],
             'train_mape': [],
@@ -191,18 +194,20 @@ class RNNTrainer:
             history['train_mape'].append(train_metrics['mape'])
             
             # Оценка на тестовых данных
-            test_metrics, test_tube = self.evaluate(X_t, y_t, loss_tube)
+            test_metrics = self.evaluate(X_t, y_t, loss_tube)
             history['test_mape'].append(test_metrics['mape'].item())
-            history['test_tube'].append(test_tube)
-            
+            history['test_tube'].append(test_metrics['tube'].item())
+            if (test_metrics['tube'].item() +  train_metrics['mape'])/2 < best_test_mape:
+                best_test_mape = (test_metrics['tube'].item() +  train_metrics['mape'])/2
+                best_model_weights = self.model.state_dict().copy()
             # Вывод прогресса
-            if (epoch + 1) % 1 == 0 or epoch == 9:
+            if (epoch + 1) % self.inf_per_epoch == 0 or epoch == 9:
                 print(
                     f'Epoch {epoch + 1}\n'
                     f'Main: {train_metrics["main_loss"]:.6f}, '
                     f'MAPE: {train_metrics["mape"]:.6f}\n'
                     f'Test - MAPE: {test_metrics["mape"]:.6f}, '
-                    f'Tube: {test_tube:.6f}'
+                    f'Tube: {test_metrics["tube"]:.6f}'
                 )
-        
+        torch.save(best_model_weights, 'best_model_weights.pth')
         return history

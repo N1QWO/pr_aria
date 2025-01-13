@@ -253,6 +253,7 @@ class RnnAdaptiveLoss(nn.Module):
     def __init__(self, delta=0.01):
         super(RnnAdaptiveLoss, self).__init__()
         self.huber = nn.HuberLoss(delta=delta)
+        self.loss_tube = None
         #self.mse = nn.MSELoss()
         
     def forward(self, pred, target):
@@ -270,13 +271,14 @@ class RnnAdaptiveLoss(nn.Module):
 
         # Общая функция потерь
         total_loss = main_loss + alpha.mean() * main_loss  # Пример использования alpha для взвешивания
-        
+        per_loss_rd = (mape < 0.01 * self.loss_tube).sum() / (mape.numel())
         
         return {
             'total_loss': total_loss,
             'main_loss': main_loss,
             'mape': torch.mean(mape),
-            'alpha': alpha.mean()  # Возвращаем среднее значение alpha
+            'alpha': alpha.mean(),  # Возвращаем среднее значение alpha
+            'tube': per_loss_rd
         }    
 class RNNTrainer:
     def __init__(self, model, learning_rate=0.001, device='cpu'):
@@ -299,7 +301,8 @@ class RNNTrainer:
             'total_loss': 0.0,
             'main_loss': 0.0,
             'mape': 0.0,
-            'alpha': 0.0
+            'alpha': 0.0,
+            'tube': 0.0
         }
         n_batches = 0
         
@@ -333,13 +336,11 @@ class RNNTrainer:
             #dummy_states = [torch.zeros_like(y_pred).unsqueeze(0)]
             metrics = self.criterion(y_pred, y)
             
-            loss_rd = torch.abs(y - y_pred) / torch.clamp(y, min=1e-7)
-            #print('2')
-            per_loss_rd = (loss_rd < 0.01 * loss_tube).sum().item() / (loss_rd.numel())
+
             #print('3')
         
         self.model.train()
-        return metrics, per_loss_rd
+        return metrics
 
     def fit(self, X, y, X_t, y_t, batch_size, epochs, loss_tube=5):
         self.model.to(self.device)
@@ -348,7 +349,8 @@ class RNNTrainer:
         X_t = X_t.to(self.device)
         y_t = y_t.to(self.device)
         scheduler = self.create_scheduler()
-        
+        best_model_weights = None
+        best_test_mape = float('inf')
         history = {
             'train_total_loss': [],
             'train_main_loss': [],
@@ -374,10 +376,12 @@ class RNNTrainer:
             history['train_alpha'].append(train_metrics['alpha'])
             
             # Оценка на тестовых данных
-            test_metrics, test_tube = self.evaluate(X_t, y_t, loss_tube)
+            test_metrics = self.evaluate(X_t, y_t, loss_tube)
             history['test_mape'].append(test_metrics['mape'].item())
-            history['test_tube'].append(test_tube)
-            
+            history['test_tube'].append(test_metrics['tube'].item())
+            if (test_metrics['tube'].item() +  train_metrics['mape'])/2 < best_test_mape:
+                best_test_mape = (test_metrics['tube'].item() +  train_metrics['mape'])/2
+                best_model_weights = self.model.state_dict().copy()
             # Вывод прогресса
             if (epoch + 1) % 1 == 0 or epoch == 9:
                 print(
@@ -388,7 +392,7 @@ class RNNTrainer:
                     f'MAPE: {train_metrics["mape"]:.6f}, '
                     f'Alpha: {train_metrics["alpha"]:.6f}\n'
                     f'Test - MAPE: {test_metrics["mape"]:.6f}, '
-                    f'Tube: {test_tube:.6f}'
+                    f'Tube: {test_metrics["tube"]:.6f}'
                 )
-        
+        torch.save(best_model_weights, 'best_model_weights.pth')
         return history

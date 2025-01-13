@@ -115,15 +115,13 @@ class LossVisualizer:
             low_mape_values = mape
             lete = 'всех значения'
 
-        # Построение гистограммы
         plt.figure(figsize=(12, 6), dpi=80)
-        plt.hist(low_mape_values.detach().numpy(), bins=100, edgecolor='black')  # Преобразование в NumPy для построения гистограммы
+        plt.hist(low_mape_values.detach().numpy(), bins=100, edgecolor='black')  
         plt.xlabel('Значения MAPE')  
         plt.ylabel('Количество примеров')  
         plt.title(f'Распределение метрики MAPE на тестовых данных {lete}: {per_loss_rd:.4}')  
         plt.show()  
 
-        # Исправлено: исправлена ошибка в расчете процента
         print(f'Процент значений MAPE {lete}: {per_loss_rd:.4}')
 
     def show_predictions_rnn(self,
@@ -193,8 +191,8 @@ class LossVisualizer:
                 device: str) -> None:
         from data_preparation import PreparationDataset
         #results = {'true_values': [], 'predictions': [], 'x_values': [], 'y_values': []}
-        for max_value in np.arange(0, 1.01, 0.25):  
-            for attribute in range(0, 1501, 500):  
+        for max_value in np.arange(0, 1.01, 0.5):  
+            for attribute in range(0, 1501, 700):  
                 filtered_df = df[(df[2] == attribute) & (df[5] == max_value)]
                 print('Количество записей:', len(filtered_df))
                 if filtered_df.empty:
@@ -215,12 +213,8 @@ class LossVisualizer:
                     
                 predictions = model.forward(X).to('cpu').detach().numpy()
                     
-                true_values = X[:,-9].to('cpu').detach().numpy() # Преобразуем в numpy сразу
+                true_values = X[:,-9].to('cpu').detach().numpy() 
                     
-                    # Построение графика
-                    # results['input'].append(true_values)
-                    # results['predictions'].append(predictions)
-                    # results['target'].append(y)  # Обрезаем до той же длины
                 plt.figure(figsize=(12, 6), dpi=60)
                 plt.scatter(true_values,predictions, s=3, label='Предсказания модели') 
                 plt.scatter(true_values,y[:,-1].to('cpu').detach().numpy(), color='red', s=6, label='Истинные значения') 
@@ -231,14 +225,18 @@ class LossVisualizer:
                 plt.show()
 
 if __name__=='__main__':
-    mape = torch.rand((15))
-    mape2 = mape**2 + torch.rand((15))/10
-    mape3 = mape**2
+    mape = torch.rand((2,2))
+    limit_percel = 5
+    per_loss_rd = (mape < 0.01 * limit_percel).sum().item() / (mape.numel())
+    print(per_loss_rd)
 
-    plt.figure(figsize=(12, 6), dpi=60)
-    plt.scatter(mape,mape2, s=3, label='Предсказания модели') 
-    plt.scatter(mape,mape3, color='red', s=6, label='Истинные значения') 
-    plt.xlabel('Топливо')
-    plt.ylabel('Тяга')
-    plt.legend()
-    plt.show()
+    low_mape_values =mape[mape<0.01*limit_percel].view(-1).sum().item()
+    print(low_mape_values)
+
+    # plt.figure(figsize=(12, 6), dpi=60)
+    # plt.scatter(mape,mape2, s=3, label='Предсказания модели') 
+    # plt.scatter(mape,mape3, color='red', s=6, label='Истинные значения') 
+    # plt.xlabel('Топливо')
+    # plt.ylabel('Тяга')
+    # plt.legend()
+    # plt.show()

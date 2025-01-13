@@ -210,6 +210,7 @@ class QuantumNeuralNetwork(nn.Module):
         super().to(device)
         self.device = device
         return self
+
 class AdaptiveLoss(nn.Module):
     """
     Класс адаптивной функции потерь.
@@ -228,6 +229,7 @@ class AdaptiveLoss(nn.Module):
         self.huber = nn.HuberLoss(delta=delta)  # Инициализация Huber Loss
         self.mse = nn.MSELoss()  # Инициализация MSE Loss
         self.quantum_weight = quantum_weight  # Установка веса для квантовой регуляризации
+        self.loss_tube = None
         
     def forward(self, pred: torch.Tensor, target: torch.Tensor, quantum_states: list) -> dict:
         """
@@ -246,7 +248,7 @@ class AdaptiveLoss(nn.Module):
         main_loss = self.huber(pred, target)
         
         # Вычисление MAPE (Mean Absolute Percentage Error) для мониторинга
-        mape = torch.abs(target - pred) / torch.clamp(target, min=1e-7)
+        mape = torch.abs(target - pred) / torch.clamp(target, min=1e-10)
         
         # Квантовая регуляризация
         quantum_losses = []
@@ -275,6 +277,7 @@ class AdaptiveLoss(nn.Module):
             'main_loss': main_loss,
             'quantum_loss': quantum_loss,
             'mape': torch.mean(mape),
+            'tube':(mape < 0.01 * self.loss_tube).sum() / mape.numel(),
             'alpha': alpha
         }    
 class QuantumTrainer:
@@ -314,7 +317,7 @@ class QuantumTrainer:
             gamma=gamma
         )
 
-    def evaluate(self, X: torch.Tensor, y: torch.Tensor, loss_tube: float = 5) -> tuple:
+    def evaluate(self, X: torch.Tensor, y: torch.Tensor) -> tuple:
         """
         Оценка модели на тестовых данных.
 
@@ -332,11 +335,9 @@ class QuantumTrainer:
             dummy_states = [torch.zeros_like(y_pred).unsqueeze(0)]  # Создание фиктивных квантовых состояний
             metrics = self.criterion(y_pred, y, dummy_states)  # Вычисление метрик
             
-            loss_rd = torch.abs(y - y_pred) / torch.clamp(y, min=1e-7)  # Вычисление относительной потери
-            per_loss_rd = (loss_rd < 0.01 * loss_tube).sum().item() / (loss_rd.numel())  # Процент потерь ниже порога
         
         self.model.train()  # Возврат модели в режим обучения
-        return metrics, per_loss_rd
+        return metrics
 
     def train_epoch(self, X: torch.Tensor, y: torch.Tensor, batch_size: int) -> dict:
         """
@@ -360,7 +361,8 @@ class QuantumTrainer:
             'main_loss': 0.0,
             'quantum_loss': 0.0,
             'mape': 0.0,
-            'alpha': 0.0
+            'alpha': 0.0,
+            'tube': 0.0
         }
         n_batches = 0
         
@@ -379,6 +381,7 @@ class QuantumTrainer:
             
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)  # Обрезка градиентов
             self.optimizer.step()  # Обновление параметров модели
+            
             
             # Суммирование метрик за батч
             for key in epoch_metrics:
@@ -404,12 +407,14 @@ class QuantumTrainer:
         - dict: История метрик обучения и тестирования.
         """
         self.model.to(self.device)  # Перемещение модели на устройство
+        self.criterion.loss_tube = loss_tube
         X = X.to(self.device)
         y = y.to(self.device)
         X_t = X_t.to(self.device)
         y_t = y_t.to(self.device)
         scheduler = self.create_scheduler()  # Создание планировщика
-        
+        best_test_mape = float('inf')  # Лучшее значение MAPE
+        best_model_weights = None  # Лучшие веса модели
         history = {
             'train_total_loss': [],
             'train_main_loss': [],
@@ -435,9 +440,14 @@ class QuantumTrainer:
             history['train_alpha'].append(train_metrics['alpha'])
             
             # Оценка на тестовых данных
-            test_metrics, test_tube = self.evaluate(X_t, y_t, loss_tube)
+            test_metrics = self.evaluate(X_t, y_t)
             history['test_mape'].append(test_metrics['mape'].item())
-            history['test_tube'].append(test_tube)
+            history['test_tube'].append(test_metrics['tube'].item())
+            
+            if (test_metrics['tube'].item() +  train_metrics['mape'])/2 < best_test_mape:
+                best_test_mape = (test_metrics['tube'].item() +  train_metrics['mape'])/2
+                best_model_weights = self.model.state_dict().copy()
+                
             
             # Вывод прогресса
             if (epoch + 1) % 100 == 0 or epoch == 9:
@@ -449,32 +459,13 @@ class QuantumTrainer:
                     f'MAPE: {train_metrics["mape"]:.6f}, '
                     f'Alpha: {train_metrics["alpha"]:.6f}\n'
                     f'Test - MAPE: {test_metrics["mape"]:.6f}, '
-                    f'Tube: {test_tube:.6f}'
+                    f'Tube: {test_metrics["tube"]:.6f}'
                 )
-        
+        torch.save(best_model_weights, 'best_model_weights.pth')
+
         return history  # Возврат истории метрик
     
 
-class QuantumDataset(Dataset):
-    def __init__(self, size=1000, input_dim=89, noise_level=0.1):
-        # Генерируем входные данные
-        self.X = torch.randn(size, input_dim)
-        
-        # Генерируем целевые значения с нелинейной зависимостью
-        base = torch.sin(self.X[:, 0:1] * 2)
-        
-        # Добавляем шум
-        self.y = base + noise_level * torch.randn_like(base)
-        
-    def __len__(self):
-        return len(self.X)
-    
-    def __getitem__(self, idx):
-        return self.X[idx], self.y[idx]
-    def get_loader(self):
-        return DataLoader(self, batch_size=self.batch_size, shuffle=self.shuffle)
-    
- 
 
 
 # Пример использования:
@@ -502,8 +493,8 @@ history = trainer.fit(
 if __name__=='__main__':
 
         # Создаем данные
-    train_dataset = QuantumDataset(size=1000)
-    test_dataset = QuantumDataset(size=200)
+    train_dataset = None
+    test_dataset = None 
 
     # Создаем даталоадеры
     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
@@ -522,7 +513,7 @@ if __name__=='__main__':
         device=device
     )
     
-    trainer = RNNTrainer(
+    trainer = QuantumTrainer(
         model=model,
         learning_rate=0.001,
         device=device

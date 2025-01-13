@@ -4,6 +4,8 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch import Tensor
 
+
+
 class SelfAttention(nn.Module):
     def __init__(self, embed_dim: int, num_heads: int, dropout: float = 0.1, device: torch.device | str ='cpu'):
         super(SelfAttention, self).__init__()
@@ -70,6 +72,9 @@ class FeedForwardRegression(nn.Module):
         x = self.fc3(x)
         return x
 
+
+
+
 class Transformer(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, num_heads: int, num_layers: int, dropout: float = 0.1, device: torch.device | str ='cpu'):
         super(Transformer, self).__init__()
@@ -103,7 +108,7 @@ class AdaptiveLoss(nn.Module):
     def __init__(self, delta: float = 0.01):
         super(AdaptiveLoss, self).__init__()
         self.loss = nn.HuberLoss(delta=delta)
-        #self.loss = nn.MSELoss()
+        self.loss_tube = None
         #self.mse = nn.MSELoss()
         
     def forward(self, pred: torch.tensor, target: torch.tensor) -> dict:
@@ -112,17 +117,19 @@ class AdaptiveLoss(nn.Module):
         
         # MAPE для мониторинга
         mape = torch.abs(target - pred) / torch.clamp(target, min=1e-7)
-        
+        per_loss_rd = (mape < 0.01 * self.loss_tube).sum() / (mape.numel())
         return {
             'main_loss': main_loss,
             'mape': torch.mean(mape),
+            'tube': per_loss_rd
         }    
+  
 
 class Trainer:
     def __init__(self, model: nn.Module, learning_rate: float=0.001, device: torch.device | str ='cpu'):
         self.model = model.to(device)
         self.device = device
-        self.criterion = AdaptiveLoss(delta = 1)  # Используем MSELoss + Hyber 
+        self.criterion = AdaptiveLoss()  # Используем MSELoss + Hyber 
         self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
 
     def create_scheduler(self):
@@ -167,26 +174,24 @@ class Trainer:
         with torch.no_grad():
             # В режиме eval модель возвращает только предсказания
             y_pred  = self.model(X)
-            # Создаем фиктивные quantum_states для criterion
-            #dummy_states = [torch.zeros_like(y_pred).unsqueeze(0)]
             metrics = self.criterion(y_pred, y)
             
-            loss_rd = torch.abs(y - y_pred) / torch.clamp(y, min=1e-7)
-            #print('2')
-            per_loss_rd = (loss_rd < 0.01 * loss_tube).sum().item() / (loss_rd.numel())
-            #print('3')
         
         self.model.train()
-        return metrics, per_loss_rd
+        return metrics
 
     def fit(self, X: torch.Tensor, y: torch.Tensor, X_t: torch.Tensor, y_t: torch.Tensor, batch_size: int = 512, epochs:int = 100, loss_tube: int = 5) -> dict:
         self.model.to(self.device)
+        self.criterion.loss_tube = loss_tube
         X = X.to(self.device)
         y = y.to(self.device)
         X_t = X_t.to(self.device)
         y_t = y_t.to(self.device)
         scheduler = self.create_scheduler()
+        best_test_mape = float('inf')
+        best_model_weights = None
         
+
         history = {
             'train_main_loss': [],
             'train_mape': [],
@@ -206,18 +211,22 @@ class Trainer:
             history['train_mape'].append(train_metrics['mape'])
             
             # Оценка на тестовых данных
-            test_metrics, test_tube = self.evaluate(X_t, y_t, loss_tube)
+            test_metrics = self.evaluate(X_t, y_t, loss_tube)
             history['test_mape'].append(test_metrics['mape'].item())
-            history['test_tube'].append(test_tube)
+            history['test_tube'].append(test_metrics['tube'].item())
+
+            if (test_metrics['tube'].item() +  train_metrics['mape'])/2 < best_test_mape:
+                best_test_mape = (test_metrics['tube'].item() +  train_metrics['mape'])/2
+                best_model_weights = self.model.state_dict().copy()
             
             # Вывод прогресса
-            if (epoch + 1) % 20 == 0 or epoch == 9:
+            if (epoch + 1) % 40 == 0 or epoch == 9:
                 print(
                     f'Epoch {epoch + 1}\n'
                     f'Main: {train_metrics["main_loss"]:.6f}, '
                     f'MAPE: {train_metrics["mape"]:.6f}\n'
                     f'Test - MAPE: {test_metrics["mape"]:.6f}, '
-                    f'Tube: {test_tube:.6f}'
+                    f'Tube: {test_metrics["tube"]:.6f}'
                 )
-        
+        torch.save(best_model_weights, 'best_model_weights.pth')
         return history
