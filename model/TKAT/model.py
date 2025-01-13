@@ -1,188 +1,32 @@
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from sklearn.model_selection import train_test_split
+# model.py
+import keras
+import tensorflow as tf
+from keras.layers import InputLayer, Dense
+from keras.models import Sequential
 
-class AdaptiveLoss(nn.Module):
-    def __init__(self, delta: float = 0.01):
-        super(AdaptiveLoss, self).__init__()
-        self.loss = nn.HuberLoss(delta=delta)
-        self.loss_tube = None
-        #self.mse = nn.MSELoss()
-        
-    def forward(self, pred: torch.tensor, target: torch.tensor) -> dict:
-        #пока так но надо лучше
-        main_loss = self.loss(pred, target)
-        
-        # MAPE для мониторинга
-        mape = torch.abs(target - pred) / torch.clamp(target, min=1e-7)
-        per_loss_rd = (mape < 0.01 * self.loss_tube).sum() / (mape.numel())
-        return {
-            'main_loss': main_loss,
-            'mape': torch.mean(mape),
-            'tube': per_loss_rd
-        }    
+# Импортируйте ваш класс TKAN из соответствующего модуля
+# Предполагается, что TKAN уже реализован в другом файле, например, в tkan.py
+from tkan import TKAN  # Замените 'tkan' на имя файла, где реализован класс TKAN
 
-class Trainer:
-    def __init__(self, model: nn.Module, learning_rate: float=0.001, device: torch.device | str ='cpu'):
-        self.model = model.to(device)
-        self.device = device
-        self.criterion = AdaptiveLoss()  # Используем MSELoss + Hyber 
-        self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
+def create_model(X_train_seq, y_train_seq,device='cpu'):
+    """
+    Создает и возвращает модель TKAN.
 
-    def create_scheduler(self):
-        # Пример создания планировщика
-        return optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.1)
-
-    def train_epoch(self, X: torch.Tensor, y: torch.Tensor, batch_size: int) -> dict:
-        dataset_size = X.shape[0]
-        indices = torch.randperm(dataset_size)
-        X_shuffled = X[indices].to(self.device)
-        y_shuffled = y[indices].to(self.device)
-        
-        epoch_metrics = {
-            'main_loss': 0.0,
-            'mape': 0.0,
-        }
-        n_batches = 0
-        
-        for i in range(0, dataset_size, batch_size):
-            X_batch = X_shuffled[i:i+batch_size]
-            y_batch = y_shuffled[i:i+batch_size]
-            #print(y_batch.shape)
-            self.optimizer.zero_grad()
-            
-            # В режиме train модель возвращает (predictions)
-            predictions = self.model(X_batch)
-            #print(predictions.shape)
-            metrics = self.criterion(predictions, y_batch)
-            metrics['main_loss'].backward()
-            
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
-            self.optimizer.step()
-            
-            for key in epoch_metrics:
-                epoch_metrics[key] += metrics[key].item()
-            n_batches += 1
-            
-        return {k: v / n_batches for k, v in epoch_metrics.items()}
-
-    def evaluate(self, X: torch.Tensor, y: torch.Tensor, loss_tube: float | int = 5):
-        self.model.eval()
-        with torch.no_grad():
-            # В режиме eval модель возвращает только предсказания
-            y_pred  = self.model(X)
-            metrics = self.criterion(y_pred, y)
-            
-        
-        self.model.train()
-        return metrics
-
-    def fit(self, X: torch.Tensor, y: torch.Tensor, X_t: torch.Tensor, y_t: torch.Tensor, batch_size: int = 512, epochs:int = 100, loss_tube: int = 5) -> dict:
-        self.model.to(self.device)
-        self.criterion.loss_tube = loss_tube
-        X = X.to(self.device)
-        y = y.to(self.device)
-        X_t = X_t.to(self.device)
-        y_t = y_t.to(self.device)
-        scheduler = self.create_scheduler()
-        best_test_mape = float('inf')
-        best_model_weights = None
-        
-
-        history = {
-            'train_main_loss': [],
-            'train_mape': [],
-            'test_mape': [],
-            'test_tube': []
-        }
-        
-        for epoch in range(epochs):
-            # Обучение на эпохе
-            train_metrics = self.train_epoch(X, y, batch_size)
-            
-            # Шаг планировщика
-            scheduler.step()
-            
-            # Сохранение метрик обучения
-            history['train_main_loss'].append(train_metrics['main_loss'])
-            history['train_mape'].append(train_metrics['mape'])
-            
-            # Оценка на тестовых данных
-            test_metrics = self.evaluate(X_t, y_t, loss_tube)
-            history['test_mape'].append(test_metrics['mape'].item())
-            history['test_tube'].append(test_metrics['tube'].item())
-
-            if (test_metrics['tube'].item() +  train_metrics['mape'])/2 < best_test_mape:
-                best_test_mape = (test_metrics['tube'].item() +  train_metrics['mape'])/2
-                best_model_weights = self.model.state_dict().copy()
-            
-            # Вывод прогресса
-            if (epoch + 1) % 40 == 0 or epoch == 9:
-                print(
-                    f'Epoch {epoch + 1}\n'
-                    f'Main: {train_metrics["main_loss"]:.6f}, '
-                    f'MAPE: {train_metrics["mape"]:.6f}\n'
-                    f'Test - MAPE: {test_metrics["mape"]:.6f}, '
-                    f'Tube: {test_metrics["tube"]:.6f}'
-                )
-        torch.save(best_model_weights, 'best_model_weights.pth')
-        return history
-
-
-
-
-# Пример использования:
-"""
-model = QuantumNeuralNetwork(...)
-trainer = QuantumTrainer(
-    model=model,
-    learning_rate=0.001,
-    device='cuda' if torch.cuda.is_available() else 'cpu'
-)
-
-history = trainer.fit(
-    X=X_train,
-    y=y_train,
-    X_t=X_test,
-    y_t=y_test,
-    batch_size=32,
-    epochs=700,
-    loss_tube=5
-)
-"""
-
-
-
-if __name__=='__main__':
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        print(device)
-        
-        X = torch.rand(1000,5).cuda()
-        y = (X.sum(dim = 1)**2).cuda()
-        # Разделение данных на обучающую и тестовую выборки
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.33, random_state=42
-        )
-        dataset = {'train_input':X_train, 'test_input':X_test, 'train_label':y_train, 'test_label':y_test}
-        # Создаем данные
-        model = KAN(width=[3,2,3,2,3], grid=7, k=5, noise_scale=0.3, seed=2,device = device)
-
-        trainer = KANTrainer(
-            model=model,
-            learning_rate=0.001,
-            device= device
-        )
-
-        history = trainer.fit(
-            X=X_train,
-            y=y_train,
-            X_t=X_test,
-            y_t=y_test,
-            batch_size=64,
-            epochs=100,
-            loss_tube=5
-        )
-
-        print(history['mape'])
-        print(history['tube'])
+    :param X_train_seq: Входные данные для обучения
+    :param y_train_seq: Целевые данные для обучения
+    :return: Скомпилированная модель Keras
+    """
+    with tf.device(device):
+        model = Sequential([
+            InputLayer(input_shape=X_train_seq.shape[1:]),
+            TKAN(100, sub_kan_configs=[
+                {'spline_order': 3, 'grid_size': 10},
+                {'spline_order': 1, 'grid_size': 5},
+                {'spline_order': 4, 'grid_size': 6}
+            ], return_sequences=True, use_bias=True),
+            TKAN(100, sub_kan_configs=[1, 2, 3, 3, 4], return_sequences=True, use_bias=True),
+            TKAN(100, sub_kan_configs=['relu', 'relu', 'relu', 'relu', 'relu'], return_sequences=True, use_bias=True),
+            TKAN(100, sub_kan_configs=[None for _ in range(3)], return_sequences=False, use_bias=True),
+            Dense(y_train_seq.shape[1]),  # Выходной слой
+        ])
+    return model

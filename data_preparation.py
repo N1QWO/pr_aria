@@ -7,11 +7,29 @@ from torch.utils.data import Dataset
 
 class PreparationDataset(Dataset):
 
-    def __init__(self, path: str = None,data: torch.tensor = None):
+    def __init__(self, path: str = None, data: torch.tensor = None):
+        """
+        Инициализация класса PreparationDataset.
+
+        Этот метод загружает данные из указанного файла или принимает тензор данных.
+
+        Параметры:
+        - path (str): Путь к файлу с данными (по умолчанию None).
+        - data (torch.tensor): Тензор данных (по умолчанию None).
+
+        Исключения:
+        - ValueError: Если path и data оба равны None.
+        - ValueError: Если возникает ошибка при загрузке файла.
+
+        Пример использования:
+        dataset = PreparationDataset(path='path/to/data/file.pt')
+        или
+        dataset = PreparationDataset(data=torch.tensor([[1, 2], [3, 4]]))
+        """
         
         # Загружаем все данные из файла
         self.all_data = torch.tensor([])
-        if path is None :
+        if path is None:
             if data is not None:
                 self.all_data = data
             else:
@@ -45,6 +63,12 @@ class PreparationDataset(Dataset):
         """
         Подготовка данных для текущего окна.
 
+        Этот метод формирует набор данных для рекуррентной нейронной сети (RNN), используя текущее окно данных.
+        
+        rnn(x1) -> y1,hidden -> rnn(hidden,x2) -> y2,hidden 
+
+        rnn(hidden,x3)-> y3,hidden -> etc
+
         Параметры:
         - path (str): Путь к файлу с данными
         - feature_window_size (int): Размер окна для признаков
@@ -53,11 +77,20 @@ class PreparationDataset(Dataset):
         - target_window_size (int): Размер окна для целевой переменной
         - windows (int): Размер окна для обработки
         - device (str): Устройство для вывода данных (CPU или GPU)
+        Возвращает:
+        - X (torch.Tensor): Тензоры признаков.
+        - y (torch.Tensor): Тензоры целевых значений.
+        - original_data (pd.DataFrame): Оригинальные данные в формате DataFrame.
+
+        Исключения:
+        - ValueError: Если downsample_step < 1.
+        - ValueError: Если размеры X и y не совпадают.
         """
 
         if downsample_step < 1:
             raise ValueError("Параметр downsample_step должен быть >= 1")
-        
+        all_feature_windows = []
+        all_target_values = []
         # Преобразуем данные в DataFrame для удобной обработки
         data_frame = pd.DataFrame(self.all_data)
         for ma in np.arange(0, 1.01, 0.05):
@@ -75,13 +108,26 @@ class PreparationDataset(Dataset):
                 self.data.extend(dataset)
                 self.output.extend(target_values)
 
-        # Преобразуем списки в тензоры
-        self.data = torch.tensor(self.data, dtype=torch.float32)
-        self.output = torch.tensor(self.output, dtype=torch.float32)
+        # Преобразование в тензоры
+        X = torch.tensor(all_feature_windows).float()
+        y = torch.tensor(all_target_values).float()
+
+        # Проверка соответствия размеров X и y
+        if len(X) != len(y):
+            raise ValueError(f"Несоответствие размеров X ({len(X)}) и y ({len(y)})")
+
+        X = X.to(device)
+        y = y.to(device)
+        
+        return X, y, pd.DataFrame(self.all_data)
 
     def many_to_many(self, window_size: int, num_features: int = 2, downsample_step: int = 1, target_window_size: int = 1,device: torch.device = 'cpu'):
         """
         Подготовка данных для модели.
+
+        [x1 x2 x3 x4 x5] -> rnn(x1,x2,x3,x4) -> hidden1 -> 
+        predict(hidden1)  -> y1 & hidden2  -> predict(hidden2) -> y2 & hidden3 -> etc
+        
 
         Параметры:
         - window_size (int): Размер окна для обработки
@@ -147,6 +193,14 @@ class PreparationDataset(Dataset):
     def vec_to_vec(self, window_size: int, num_features: int = 2, downsample_step: int = 1, target_window_size: int = 1,device: torch.device = 'cpu'):
         """
         Подготовка данных для модели.
+
+        vector(: n) -> predict -> y(: n)
+
+        n = window_size * num_features - 1 
+
+        `- 1 ` = predict 
+
+        n + predict = window_size * num_features
 
         Параметры:
         - window_size (int): Размер окна для обработки
@@ -218,6 +272,13 @@ class PreparationDataset(Dataset):
 def update_data_with_predictions(model: torch.nn.Module, df: pd.DataFrame, input_x: torch.Tensor) -> tuple:
     """
     Обновление данных с использованием предсказаний модели.
+    idea:
+
+    - input : [1 2 3 4]
+
+    - shift input [1 2 3 4] -> predict[5] -> update [2 3 4 5]
+    
+    - output : update[2 3 4 5], predict[5]
 
     Параметры:
     - model (torch.nn.Module): Обученная модель для предсказания.
@@ -262,4 +323,5 @@ if __name__=='__main__':
                 window_shape=target_window_size)[window_size:]
     
     print(feature_windows)
+    print(target_values)
     print(target_values)

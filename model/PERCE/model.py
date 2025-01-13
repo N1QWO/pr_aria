@@ -62,8 +62,6 @@ class Bl(nn.Module):
         re = self.fc4(cust * maxp)
         return re
 
-
-
 class three_layer(nn.Module):
     
     def __init__(self, input_size: int, output_size: int,hid: int = 64,hid2: int = 32,hid3: int =64,device: torch.device | str='cpu'):

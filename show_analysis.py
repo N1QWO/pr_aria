@@ -98,10 +98,13 @@ class LossVisualizer:
             plt.legend()
             plt.show()
 
-    def histogram_mape(self, model: nn.Module, X: torch.Tensor, target: torch.Tensor, limit_percel: float | None = None) -> None:
+    def histogram_mape(self, model: nn.Module, X: torch.Tensor, target: torch.Tensor, limit_percel: float | None = None,keras = False) -> None:
         """Отображает гистограмму распределения MAPE на тестовых данных."""
-        
-        pred = model.forward(X).to('cpu')
+        if keras:
+            pred = model.predict(X)
+        else:
+            pred = model.forward(X).to('cpu')
+
         target = target.to('cpu')
         mape = torch.abs(target - pred) / torch.clamp(target, min=1e-7)
         per_loss_rd = (mape < 0.01 * limit_percel).sum().item() / (mape.numel())
@@ -128,7 +131,8 @@ class LossVisualizer:
                 model: nn.Module, 
                 df: pd.DataFrame,
                 pd_params: tuple,
-                device: str) -> None:
+                keras: bool = False,
+                device:torch.device | str = 'cpu') -> None:
         """
         Отображает графики предсказаний модели по сравнению с истинными значениями.
 
@@ -164,8 +168,10 @@ class LossVisualizer:
                         target_window_size,
                         device=device  
                     )
-                    
-                predictions = model.forward(X)[:, -1].to('cpu').detach().numpy()
+                if keras:
+                    predictions = model.predict(X)[:, -1].to('cpu').detach().numpy()
+                else:
+                    predictions = model.forward(X)[:, -1].to('cpu').detach().numpy()
                     
                 true_values = X[:,-1,0].to('cpu').detach().numpy() # Преобразуем в numpy сразу
                     
@@ -188,7 +194,8 @@ class LossVisualizer:
                 model: nn.Module, 
                 df: pd.DataFrame, 
                 pd_params: tuple,
-                device: str) -> None:
+                keras: bool = False,
+                device:torch.device | str = 'cpu') -> None:
         from data_preparation import PreparationDataset
         #results = {'true_values': [], 'predictions': [], 'x_values': [], 'y_values': []}
         for max_value in np.arange(0, 1.01, 0.5):  
@@ -210,8 +217,10 @@ class LossVisualizer:
                         target_window_size=target_window_size,
                         device=device  
                     )
-                    
-                predictions = model.forward(X).to('cpu').detach().numpy()
+                if keras:
+                    predictions = model.predict(X).to('cpu').detach().numpy()
+                else:
+                    predictions = model.forward(X).to('cpu').detach().numpy()
                     
                 true_values = X[:,-9].to('cpu').detach().numpy() 
                     

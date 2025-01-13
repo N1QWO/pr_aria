@@ -8,6 +8,20 @@ from torch import Tensor
 
 class SelfAttention(nn.Module):
     def __init__(self, embed_dim: int, num_heads: int, dropout: float = 0.1, device: torch.device | str ='cpu'):
+        """
+        Инициализация слоя самовнимания (Self-Attention).
+
+        Этот слой реализует механизм самовнимания, который позволяет модели фокусироваться на различных частях входных данных.
+
+        Параметры:
+        - embed_dim (int): Размерность векторного представления (embedding dimension).
+        - num_heads (int): Количество голов (heads) в механизме внимания.
+        - dropout (float): Вероятность обнуления (dropout rate) для регуляризации (по умолчанию 0.1).
+        - device (torch.device | str): Устройство для размещения тензоров (CPU или GPU, по умолчанию 'cpu').
+
+        Исключения:
+        - ValueError: Если размерность векторного представления не делится на количество голов.
+        """
         super(SelfAttention, self).__init__()
         self.device = device
         self.embed_dim = embed_dim
@@ -27,12 +41,24 @@ class SelfAttention(nn.Module):
         self._initialize_weights()
 
     def _initialize_weights(self):
+        """
+        Инициализация весов слоев нормальным распределением.
+        """
         for layer in [self.query, self.key, self.value, self.fc_out]:
             nn.init.normal_(layer.weight, mean=0.0, std=0.02)
             if layer.bias is not None:
                 nn.init.constant_(layer.bias, 0)
 
     def forward(self, x: Tensor) -> Tensor:
+        """
+        Прямой проход через слой самовнимания.
+
+        Параметры:
+        - x (Tensor): Входные данные с размерностью (batch_size, seq_len, embed_dim).
+
+        Возвращает:
+        - Tensor: Выходные данные с размерностью (batch_size, seq_len, embed_dim).
+        """
         batch_size, seq_len, embed_dim = x.shape
 
         Q = self.query(x)
@@ -57,6 +83,18 @@ class SelfAttention(nn.Module):
 
 class FeedForwardRegression(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, dropout: float = 0.1, device: torch.device | str ='cpu'):
+        """
+        Инициализация полносвязного слоя для регрессии.
+
+        Этот слой состоит из двух полносвязных слоев с активацией ReLU и регуляризацией Dropout.
+
+        Параметры:
+        - input_dim (int): Размерность входных данных.
+        - hidden_dim (int): Размерность скрытого слоя.
+        - output_dim (int): Размерность выходных данных.
+        - dropout (float): Вероятность обнуления (dropout rate) для регуляризации (по умолчанию 0.1).
+        - device (torch.device | str): Устройство для размещения тензоров (CPU или GPU, по умолчанию 'cpu').
+        """
         super(FeedForwardRegression, self).__init__()
         self.device = device
         self.dropout = nn.Dropout(dropout)
@@ -65,6 +103,15 @@ class FeedForwardRegression(nn.Module):
         self.fc3 = nn.Linear(hidden_dim, output_dim, device=self.device)
 
     def forward(self, x: Tensor) -> Tensor:
+        """
+        Прямой проход через полносвязный слой.
+
+        Параметры:
+        - x (Tensor): Входные данные с размерностью (batch_size, input_dim).
+
+        Возвращает:
+        - Tensor: Выходные данные с размерностью (batch_size, output_dim).
+        """
         x = F.relu(self.fc1(x))
         x = self.dropout(x)  # Применяем Dropout
         x = F.relu(self.fc2(x))
@@ -77,6 +124,20 @@ class FeedForwardRegression(nn.Module):
 
 class Transformer(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, num_heads: int, num_layers: int, dropout: float = 0.1, device: torch.device | str ='cpu'):
+        """
+        Инициализация трансформера.
+
+        Этот класс реализует архитектуру трансформера, состоящую из слоев самовнимания и полносвязных слоев.
+
+        Параметры:
+        - input_dim (int): Размерность входных данных.
+        - hidden_dim (int): Размерность скрытого слоя.
+        - output_dim (int): Размерность выходных данных.
+        - num_heads (int): Количество голов в механизме внимания.
+        - num_layers (int): Количество слоев самовнимания.
+        - dropout (float): Вероятность обнуления (dropout rate) для регуляризации (по умолчанию 0.1).
+        - device (torch.device | str): Устройство для размещения тензоров (CPU или GPU, по умолчанию 'cpu').
+        """
         super(Transformer, self).__init__()
         self.device = device
         self.input_projection = nn.Linear(input_dim, hidden_dim, device=self.device)
@@ -87,12 +148,21 @@ class Transformer(nn.Module):
         self.layer_norms = nn.LayerNorm(hidden_dim, device=self.device)  # Нормализация после каждого слоя
 
     def forward(self, x: Tensor) -> Tensor:
+        """
+        Прямой проход через трансформер.
+
+        Параметры:
+        - x (Tensor): Входные данные с размерностью (batch_size, seq_len, input_dim).
+
+        Возвращает:
+        - Tensor: Выходные данные с размерностью (batch_size, output_dim).
+        """
         # Преобразуем входные данные
         x = self.input_projection(x)  # (batch_size, seq_len, input_dim) -> (batch_size, seq_len, hidden_dim)
 
         for i, attention_layer in enumerate(self.self_attention_layers):
             x = attention_layer(x)  # Применяем механизм внимания
-            #x = self.layer_norms[i](x)  # Применяем нормализацию после слоя внимания
+            # x = self.layer_norms[i](x)  # Применяем нормализацию после слоя внимания
 
         # Применяем полносвязный слой для регрессии
         x = self.layer_norms(x)  # Применяем нормализацию после полносвязного слоя
