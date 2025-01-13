@@ -42,7 +42,7 @@ pip install -r requirements.txt
 1. Подготовьте ваши данные, используя `data_preparation.py`.
 2. Обучите модель, запустив `main.py`:
    ```bash
-   python main.py
+   python test_1.ipynb
    ```
 3. Для анализа и визуализации результатов используйте `show_analysis.py`.
 4. Тестирование каждой модели проходит в соответствующих Jupyter Notebook файлах:
