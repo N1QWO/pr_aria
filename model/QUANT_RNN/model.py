@@ -281,16 +281,34 @@ class RnnAdaptiveLoss(nn.Module):
             'tube': per_loss_rd
         }    
 class RNNTrainer:
-    def __init__(self, model, learning_rate=0.001, device='cpu'):
+    def __init__(self, model, learning_rate=0.001,inf_per_epoch: int = 20, device='cpu'):
         self.model = model.to(device)
         self.device = device
         self.criterion = RnnAdaptiveLoss()  # Используем MSELoss + Hyber 
         self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
+        self.inf_per_epoch = inf_per_epoch
+        self.history = {
+            'train_total_loss': [],
+            'train_main_loss': [],
+            'train_mape': [],
+            'train_alpha': [],
+            'train_tube': [],
+            'test_total_loss': [],
+            'test_main_loss': [],
+            'test_mape': [],
+            'test_alpha': [],
+            'test_tube': []
+        }
 
     def create_scheduler(self):
         # Пример создания планировщика
         return optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.1)
-
+    
+    def add_history(self, train_metrics: dict, test_metrics: dict):
+        for key in train_metrics:
+            self.history['train_' + key].append(train_metrics[key])
+        for key in test_metrics:
+            self.history['test_' + key].append(test_metrics[key].item())
     def train_epoch(self, X, y, batch_size):
         dataset_size = X.shape[0]
         indices = torch.randperm(dataset_size)
@@ -351,15 +369,7 @@ class RNNTrainer:
         scheduler = self.create_scheduler()
         best_model_weights = None
         best_test_mape = float('inf')
-        history = {
-            'train_total_loss': [],
-            'train_main_loss': [],
-            #'train_quantum_loss': [],
-            'train_mape': [],
-            'train_alpha': [],
-            'test_mape': [],
-            'test_tube': []
-        }
+
         
         for epoch in range(epochs):
             # Обучение на эпохе
@@ -368,22 +378,15 @@ class RNNTrainer:
             # Шаг планировщика
             scheduler.step()
             
-            # Сохранение метрик обучения
-            history['train_total_loss'].append(train_metrics['total_loss'])
-            history['train_main_loss'].append(train_metrics['main_loss'])
-            #history['train_quantum_loss'].append(train_metrics['quantum_loss'])
-            history['train_mape'].append(train_metrics['mape'])
-            history['train_alpha'].append(train_metrics['alpha'])
-            
             # Оценка на тестовых данных
             test_metrics = self.evaluate(X_t, y_t, loss_tube)
-            history['test_mape'].append(test_metrics['mape'].item())
-            history['test_tube'].append(test_metrics['tube'].item())
+            self.add_history(train_metrics,test_metrics)
+
             if (test_metrics['tube'].item() +  train_metrics['mape'])/2 < best_test_mape:
                 best_test_mape = (test_metrics['tube'].item() +  train_metrics['mape'])/2
                 best_model_weights = self.model.state_dict().copy()
             # Вывод прогресса
-            if (epoch + 1) % 1 == 0 or epoch == 9:
+            if (epoch + 1) % self.inf_per_epoch == 0 or epoch == 9:
                 print(
                     f'Epoch {epoch + 1}\n'
                     f'Train - Total: {train_metrics["total_loss"]:.6f}, '
@@ -395,4 +398,4 @@ class RNNTrainer:
                     f'Tube: {test_metrics["tube"]:.6f}'
                 )
         torch.save(best_model_weights, 'best_model_weights.pth')
-        return history
+        return self.history

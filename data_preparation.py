@@ -2,12 +2,12 @@ import pandas as pd
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-
+from sklearn.model_selection import train_test_split
 
 
 class PreparationDataset(Dataset):
 
-    def __init__(self, path: str = None, data: torch.tensor = None):
+    def __init__(self, path: str = None, data: torch.tensor = None, train_test_split: bool = False):
         """
         Инициализация класса PreparationDataset.
 
@@ -28,18 +28,19 @@ class PreparationDataset(Dataset):
         """
         
         # Загружаем все данные из файла
-        self.all_data = torch.tensor([])
-        if path is None:
-            if data is not None:
-                self.all_data = data
-            else:
-                raise ValueError(f"Ошибка передачи ссылки или данных")
+        if train_test_split == False:
+            self.all_data = torch.tensor([])
+            if path is None:
+                if data is not None:
+                    self.all_data = data
+                else:
+                    raise ValueError(f"Ошибка передачи ссылки или данных")
 
-        else:
-            try:
-                self.all_data = torch.load(path)
-            except Exception as e:
-                raise ValueError(f"Ошибка загрузки файла: {e}")
+            else:
+                try:
+                    self.all_data = torch.load(path)
+                except Exception as e:
+                    raise ValueError(f"Ошибка загрузки файла: {e}")
 
         self.data = []  # Список для хранения признаков
         self.output = []  # Список для хранения целевых значений
@@ -57,7 +58,17 @@ class PreparationDataset(Dataset):
         y = self.output[idx]
         return torch.tensor(x, dtype=torch.float32), torch.tensor(y, dtype=torch.float32)
 
+    def PDtrain_test_split(self, X: torch.tensor, y: torch.tensor, test_size: float = 0.33, random_state: int = 42):
+        bin = torch.tensor([0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 1000])
+        
+        # Используем torch.bucketize для создания стратифицированных меток
+        bin_stratify = torch.bucketize(y.to('cpu'), bin)
 
+        # Разделение данных на обучающую и тестовую выборки
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, random_state=random_state, stratify=bin_stratify.numpy()
+        )
+        return X_train, X_test, y_train, y_test
     
     def cur_to_cur(self, feature_window_size, downsample_step, num_features, target_window_size, windows, device):
         """
@@ -265,7 +276,7 @@ class PreparationDataset(Dataset):
         y = y.to(device)
         return X, y, pd.DataFrame(self.all_data)
     
-
+        
 
         
 
@@ -308,20 +319,17 @@ def update_data_with_predictions(model: torch.nn.Module, df: pd.DataFrame, input
 
 
 if __name__=='__main__':
-    feature_values = torch.randint(low=0, high=100, size=(20, 2))
-    window_size = 3
-    target_window_size = 2
-
-
-    feature_windows = np.lib.stride_tricks.sliding_window_view(
-                feature_values,
-                window_shape=(window_size, feature_values.shape[1]))[: -target_window_size]
-
-            # y: окна для целевых значений со смещением
-    target_values = np.lib.stride_tricks.sliding_window_view(
-                feature_values[:, -1],
-                window_shape=target_window_size)[window_size:]
     
-    print(feature_windows)
-    print(target_values)
-    print(target_values)
+
+    X = torch.rand((1000,10))*100
+    y = torch.rand((1000,1))*100+ torch.rand((1000,1))*10
+
+    PD = PreparationDataset(data=X)
+
+    X_train, X_test, y_train, y_test = PD.PDtrain_test_split(X,y)
+
+    print(X_train.shape)
+    print(X_test.shape)
+    print(y_train.shape)
+    print(y_test.shape)
+

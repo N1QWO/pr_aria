@@ -193,12 +193,20 @@ class AdaptiveLoss(nn.Module):
   
 
 class Trainer:
-    def __init__(self, model: nn.Module, learning_rate: float=0.001, device: torch.device | str ='cpu'):
+    def __init__(self, model: nn.Module, learning_rate: float=0.001, inf_per_epoch: int = 20, device: torch.device | str ='cpu'):
         self.model = model.to(device)
         self.device = device
         self.criterion = AdaptiveLoss()  # Используем MSELoss + Hyber 
         self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
-
+        self.inf_per_epoch = inf_per_epoch
+        self.history = {
+            'train_main_loss': [],
+            'train_mape': [],
+            'train_tube': [],
+            'test_main_loss': [],
+            'test_mape': [],
+            'test_tube': []
+        }
     def create_scheduler(self):
         # Пример создания планировщика
         return optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.1)
@@ -246,6 +254,12 @@ class Trainer:
         
         self.model.train()
         return metrics
+    
+    def add_history(self, train_metrics: dict, test_metrics: dict):
+        for key in train_metrics:
+            self.history['train_' + key].append(train_metrics[key])
+        for key in test_metrics:
+            self.history['test_' + key].append(test_metrics[key].item())
 
     def fit(self, X: torch.Tensor, y: torch.Tensor, X_t: torch.Tensor, y_t: torch.Tensor, batch_size: int = 512, epochs:int = 100, loss_tube: int = 5) -> dict:
         self.model.to(self.device)
@@ -258,14 +272,6 @@ class Trainer:
         best_test_mape = float('inf')
         best_model_weights = None
         
-
-        history = {
-            'train_main_loss': [],
-            'train_mape': [],
-            'test_mape': [],
-            'test_tube': []
-        }
-        
         for epoch in range(epochs):
             # Обучение на эпохе
             train_metrics = self.train_epoch(X, y, batch_size)
@@ -273,21 +279,16 @@ class Trainer:
             # Шаг планировщика
             scheduler.step()
             
-            # Сохранение метрик обучения
-            history['train_main_loss'].append(train_metrics['main_loss'])
-            history['train_mape'].append(train_metrics['mape'])
-            
             # Оценка на тестовых данных
             test_metrics = self.evaluate(X_t, y_t, loss_tube)
-            history['test_mape'].append(test_metrics['mape'].item())
-            history['test_tube'].append(test_metrics['tube'].item())
+            self.add_history(train_metrics,test_metrics)
 
             if (test_metrics['tube'].item() +  train_metrics['mape'])/2 < best_test_mape:
                 best_test_mape = (test_metrics['tube'].item() +  train_metrics['mape'])/2
                 best_model_weights = self.model.state_dict().copy()
             
             # Вывод прогресса
-            if (epoch + 1) % 40 == 0 or epoch == 9:
+            if (epoch + 1) % self.inf_per_epoch == 0 or epoch == 9:
                 print(
                     f'Epoch {epoch + 1}\n'
                     f'Main: {train_metrics["main_loss"]:.6f}, '
@@ -296,4 +297,4 @@ class Trainer:
                     f'Tube: {test_metrics["tube"]:.6f}'
                 )
         torch.save(best_model_weights, 'best_model_weights.pth')
-        return history
+        return self.history
