@@ -1,0 +1,28 @@
+{
+    "QUANT": {
+        "9a6510f3-1efa-477a-9419-75aea782f46a": {
+            "result": {
+                "train_total_loss": 0.1287399749397426,
+                "train_main_loss": 0.09475770359439356,
+                "train_quantum_loss": 0.6489254830925314,
+                "train_mape": 0.042943613784102434,
+                "train_alpha": 0.5236698448121011,
+                "train_tube": 0.6686843093316834,
+                "test_total_loss": 0.0710064247250557,
+                "test_main_loss": 0.0710064247250557,
+                "test_quantum_loss": 0.0,
+                "test_mape": 0.03250595182180405,
+                "test_alpha": 0.5177441835403442,
+                "test_tube": 0.7827082872390747
+            },
+            "message": "тестовое обучение",
+            "params": {
+                "hidden_size": 256,
+                "num_bands": 8,
+                "lr": 0.001,
+                "batch_size": 32
+            },
+            "epoch": 199
+        }
+    }
+}

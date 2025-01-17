@@ -100,10 +100,13 @@ class LossVisualizer:
 
     def histogram_mape(self, model: nn.Module, X: torch.Tensor, target: torch.Tensor, limit_percel: float | None = None,keras = False) -> None:
         """Отображает гистограмму распределения MAPE на тестовых данных."""
+        
         if keras:
             pred = model.predict(X)
         else:
+            model.eval()
             pred = model.forward(X).to('cpu')
+            model.train()
 
         target = target.to('cpu')
         mape = torch.abs(target - pred) / torch.clamp(target, min=1e-7)
@@ -171,7 +174,9 @@ class LossVisualizer:
                 if keras:
                     predictions = model.predict(X)[:, -1].to('cpu').detach().numpy()
                 else:
+                    model.eval()
                     predictions = model.forward(X)[:, -1].to('cpu').detach().numpy()
+                    model.train()
                     
                 true_values = X[:,-1,0].to('cpu').detach().numpy() # Преобразуем в numpy сразу
                     
@@ -220,7 +225,9 @@ class LossVisualizer:
                 if keras:
                     predictions = model.predict(X).to('cpu').detach().numpy()
                 else:
+                    model.eval()
                     predictions = model.forward(X).to('cpu').detach().numpy()
+                    model.train()
                     
                 true_values = X[:,-9].to('cpu').detach().numpy() 
                     

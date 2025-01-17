@@ -36,7 +36,7 @@ class QuantumLayer(nn.Module):
         
         # Смещение
         self.f_b = nn.Parameter(torch.zeros(out_features))
-        
+        self.sfm = nn.Softmax(dim=1)
         # Инициализация весов
         self._init_weights()
     
@@ -49,7 +49,7 @@ class QuantumLayer(nn.Module):
     def quan(self, x):
         """Квантовая функция активации с защитой от численной нестабильности"""
         # Добавляем ограничение на входные значения для стабильности
-        x = torch.clamp(x, min=-5, max=5)
+        x = torch.clamp(x, min=-2, max=2)
         return 1 / (torch.exp(-x + 1e-12) - 1)
     
     def forward(self, input):
@@ -61,12 +61,12 @@ class QuantumLayer(nn.Module):
         A = self.norm_a(self.W_a(input))  # (batch_size, in_features) -> (batch_size, out_features)
         B = self.norm_b(self.W_b(input))  # (batch_size, in_features) -> (batch_size, out_features)
 
-        A = torch.clamp(A, min=-100, max=100)
-        B = torch.clamp(B, min=-100, max=100)
+        A = torch.clamp(A, min=-2, max=2)
+        B = torch.clamp(B, min=-2, max=2)
         
         # Квантовые преобразования с dropout
-        qa = self.dropout(self.quan(self.W_qa(A)))  # (batch_size, out_features)
-        qb = self.dropout(self.quan(self.W_qb(B)))  # (batch_size, out_features)
+        qa = self.dropout(self.sfm(self.W_qa(A)))  # (batch_size, out_features)
+        qb = self.dropout(self.sfm(self.W_qb(B)))  # (batch_size, out_features)
         
         # Key преобразования
         ka = self.dropout(self.fa2(self.W_ka(A)))  # (batch_size, out_features)
@@ -93,7 +93,7 @@ class QuantumLayer(nn.Module):
             }
     
 class QuantumModel(nn.Module):
-    def __init__(self, in_features, out_features, head=1, hid_q=64, hid_l=128, dropout_rate=0.1, device='cpu'):
+    def __init__(self, in_features, out_features, head=1, hid_q=64, hid_l=128, dropout_rate=0.3, device='cpu'):
         super(QuantumModel, self).__init__()
         self.device = device
         self.head = head
