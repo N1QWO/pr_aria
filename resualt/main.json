@@ -23,6 +23,102 @@
                 "batch_size": 32
             },
             "epoch": 199
+        },
+        "75cd1f4b-7a2c-4362-8e09-442ee2cf385c": {
+            "result": {
+                "train_total_loss": 0.14942449520904202,
+                "train_main_loss": 0.12685170185727043,
+                "train_quantum_loss": 0.42456731206930437,
+                "train_mape": 0.056115766777447215,
+                "train_alpha": 0.53166582764269,
+                "train_tube": 0.5464292417641159,
+                "test_total_loss": 0.07455272227525711,
+                "test_main_loss": 0.07455272227525711,
+                "test_quantum_loss": 0.0,
+                "test_mape": 0.03485610708594322,
+                "test_alpha": 0.5186295509338379,
+                "test_tube": 0.7802748680114746
+            },
+            "message": "тестовое обучение",
+            "params": {
+                "hidden_size": 64,
+                "num_bands": 3,
+                "lr": 0.001,
+                "batch_size": 32
+            },
+            "epoch": 198
+        },
+        "d01c8e83-40b9-43bc-83da-eacc69103cd5": {
+            "result": {
+                "train_total_loss": 0.15035097267445144,
+                "train_main_loss": 0.12341714470840252,
+                "train_quantum_loss": 0.5074097514152527,
+                "train_mape": 0.05394489302190843,
+                "train_alpha": 0.5308102068600354,
+                "train_tube": 0.5585820195642678,
+                "test_total_loss": 0.07321224361658096,
+                "test_main_loss": 0.07321224361658096,
+                "test_quantum_loss": 0.0,
+                "test_mape": 0.03360539674758911,
+                "test_alpha": 0.5182948708534241,
+                "test_tube": 0.7791297435760498
+            },
+            "message": "тестовое обучение",
+            "params": {
+                "hidden_size": 64,
+                "num_bands": 3,
+                "lr": 0.001,
+                "batch_size": 32
+            },
+            "epoch": 199
+        },
+        "070b942d-ca1f-49d5-9657-1b7611a4faf9": {
+            "result": {
+                "train_total_loss": 0.1518012148974178,
+                "train_main_loss": 0.12484921707964695,
+                "train_quantum_loss": 0.5074097514152527,
+                "train_mape": 0.05440582455815496,
+                "train_alpha": 0.5311682998865574,
+                "train_tube": 0.5605762012906976,
+                "test_total_loss": 0.07880460470914841,
+                "test_main_loss": 0.07880460470914841,
+                "test_quantum_loss": 0.0,
+                "test_mape": 0.036839306354522705,
+                "test_alpha": 0.519690990447998,
+                "test_tube": 0.7562267780303955
+            },
+            "message": "тестовое обучение",
+            "params": {
+                "hidden_size": 64,
+                "num_bands": 3,
+                "lr": 0.001,
+                "batch_size": 32
+            },
+            "epoch": 188
+        }
+    },
+    "EARLY_QUANT": {
+        "409566f2-ebcf-4a81-ac09-9f7e26bf6ad4": {
+            "result": {
+                "train_main_loss": 0.30638728065936416,
+                "train_mape": 0.13455891142691578,
+                "train_tube": 0.23655686936936937,
+                "test_main_loss": 0.23767581582069397,
+                "test_mape": 0.10023782402276993,
+                "test_tube": 0.287145733833313
+            },
+            "message": "test learning",
+            "params": {
+                "in_features": 89,
+                "out_features": 1,
+                "head": 16,
+                "hid_q": 16,
+                "hid_l": 128,
+                "dropout_rate": 0.3,
+                "lr": 0.001,
+                "batch_size": 32
+            },
+            "epoch": 19
         }
     }
 }

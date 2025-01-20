@@ -192,6 +192,7 @@ class Trainer:
         epoch_metrics = {
             'main_loss': 0.0,
             'mape': 0.0,
+            'tube': 0.0,
         }
         n_batches = 0
         

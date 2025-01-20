@@ -49,7 +49,9 @@ class QuantumBandLayer(nn.Module):
             for _ in range(num_bands)
         ])
         
+        
         self.band_mixing = nn.Parameter(torch.randn(num_bands, device=device) * 0.02)
+        self.outp_w = nn.Parameter(torch.randn(2, device=device))
         self.activation = nn.GELU()
 
     def to(self, device: torch.device | str) -> 'QuantumBandLayer':
@@ -95,20 +97,23 @@ class QuantumBandLayer(nn.Module):
         
         # Получение размера батча (количество входных примеров)
         batch_size = x.size(0)
-        
+        # print('x',x.shape)
         # Применение каждого квантового слоя к входным данным
         band_states = [band(x) for band in self.energy_bands]
+        # print('len(band_states)',len(band_states),'band_states[0].shape',band_states[0].shape)
         # band_states теперь содержит выходы всех квантовых слоев, упакованные в тензор
         band_states = torch.stack(band_states)
+        # print('band_states',band_states.shape)
         
         # Применение квантовых проекций к состояниям полос
         quantum_states = [
             self.quantum_transition(proj(state))
             for proj, state in zip(self.quantum_projections, band_states)
         ]
+        # print('quantum_states',len(quantum_states),'quantum_states[0]',quantum_states[0].shape)
         # quantum_states теперь содержит квантовые состояния после активации
         quantum_states = torch.stack(quantum_states)
-
+        # print('quantum_states',quantum_states.shape)
         # Вычисление взаимодействий между полосами с использованием матричного умножения
         band_interactions = torch.einsum(
             'nbi,nmf,mbi->bf',
@@ -116,17 +121,26 @@ class QuantumBandLayer(nn.Module):
             self.transition_weights,
             band_states
         )
-        
+        # print('self.transition_weights',self.transition_weights.shape)
+        # print('quantum_states * self.transition_weights * band_states = band_interactions')
+        # print('band_interactions',band_interactions.shape)
         # Смешивание состояний полос с использованием весов смешивания
+        f_s = F.softmax(self.band_mixing, dim=0)
+        # print('f_s = F.softmax(self.band_mixing, dim=0)',f_s.shape)
         mixed_state = torch.einsum(
             'n,nbi->bi', 
-            F.softmax(self.band_mixing, dim=0),
+            f_s,
             band_states
         )
+        # print('f_s * band_states = mixed_state')
+        # print('mixed_state',mixed_state.shape)
         
         # Вычисление выходных данных как сумма смешанного состояния и взаимодействий полос
-        output = mixed_state + 0.5 * band_interactions
-        
+        t_outp_w = F.softmax(self.outp_w, dim=0)
+        output = t_outp_w[0]*mixed_state + t_outp_w[1] * band_interactions
+
+        # print('output',output.shape)
+        # exit()
         # Если модель в режиме обучения, возвращаем выходные данные и квантовые состояния
         if self.training:
             return output, quantum_states
@@ -230,7 +244,7 @@ class AdaptiveLoss(nn.Module):
         self.mse = nn.MSELoss()  # Инициализация MSE Loss
         self.quantum_weight = quantum_weight  # Установка веса для квантовой регуляризации
         self.loss_tube = None
-        
+       
     def forward(self, pred: torch.Tensor, target: torch.Tensor, quantum_states: list) -> dict:
         """
         Прямой проход для вычисления функции потерь.
@@ -442,7 +456,7 @@ class QuantumTrainer:
             # Шаг планировщика
             scheduler.step()
             
-            # Сохранение метрик обучения   
+            # Сохранение метрик обучения
             # Оценка на тестовых данных
             test_metrics = self.evaluate(X_t, y_t)
             self.add_history(train_metrics,test_metrics)
