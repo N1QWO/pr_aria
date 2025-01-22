@@ -6,7 +6,6 @@ import torch.nn as nn
 import numpy as np
 
 
-# Кастомная LSTM-ячейка с KANLayer вместо tanh
 class CustomLSTMCell(nn.Module):
     def __init__(self, input_size, hidden_size,device = 'cpu'):
         super(CustomLSTMCell, self).__init__()
@@ -19,9 +18,6 @@ class CustomLSTMCell(nn.Module):
         self.W_o = nn.Linear(input_size + hidden_size, hidden_size)
         self.W_c = nn.Linear(input_size + hidden_size, hidden_size)
         
-        #self.KAN = KAN(width=[hidden_size,3,hidden_size], grid=3, k=3, seed=0,device=device)
-        #self.KAN = KAN(width=[hidden_size,hidden_size], grid=5, k=5, seed=0,device=device)
-        # Инициализируем KANLayer
 
     def forward(self, x, hidden):
         h_prev, c_prev = hidden
@@ -37,7 +33,7 @@ class CustomLSTMCell(nn.Module):
         o_t = torch.sigmoid(self.W_o(combined)/self.sqrt_h)
         
         # Вместо tanh используем KANLayer для вычисления кандидата скрытого состояния
-        #c_tilde = self.KAN(self.W_c(combined))
+        
         c_tilde = torch.tanh(self.W_c(combined)/self.sqrt_h)
 
         c_t = f_t * c_prev + i_t * c_tilde
@@ -83,6 +79,57 @@ class VanilaRNN(nn.Module):
         #print('5')
         return output
 
+
+class LSTMNetwork(nn.Module):
+    def __init__(self, input_size: int, hidden_size: int, num_layers: int, output_size: int, dropout: float = 0.1,device='cpu'):
+        """
+        Инициализация LSTM сети.
+
+        :param input_size: Размер входного вектора (количество признаков на каждый временной шаг).
+        :param hidden_size: Количество нейронов в скрытом слое LSTM.
+        :param num_layers: Количество слоёв LSTM.
+        :param output_size: Размер выходного вектора.
+        :param dropout: Вероятность dropout для регуляризации.
+        """
+        super(LSTMNetwork, self).__init__()
+
+        # Параметры модели
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.output_size = output_size
+        self.device = device
+        # LSTM слой
+        self.lstm = nn.LSTM(
+            input_size=input_size,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            batch_first=True,  # Входные данные имеют форму (batch, seq_len, input_size)
+            dropout=dropout if num_layers > 1 else 0,  # Dropout применяется только между слоями LSTM
+            device=device
+        )
+
+        # Полносвязный слой для преобразования выхода LSTM в выходной размер
+        self.fc = nn.Linear(hidden_size, output_size,device=device)
+
+    def forward(self, x: torch.Tensor):
+        """
+        Прямой проход через LSTM сеть.
+
+        :param x: Входной тензор формы (batch_size, seq_len, input_size).
+        :return: Выходной тензор формы (batch_size, output_size).
+        """
+        # Инициализация скрытого состояния и состояния ячейки
+        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
+        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
+
+        # Прямой проход через LSTM
+        out, _ = self.lstm(x, (h0, c0))  # out имеет форму (batch_size, seq_len, hidden_size)
+
+        # Используем только последний временной шаг для классификации/регрессии
+        out = self.fc(out[:, -1, :])  # Берём последний элемент последовательности
+
+        return out
 class RnnAdaptiveLoss(nn.Module):
     def __init__(self, delta=0.01):
         super(RnnAdaptiveLoss, self).__init__()
@@ -122,7 +169,7 @@ class RNNTrainer:
         }
     def create_scheduler(self):
         # Пример создания планировщика
-        return optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.1)
+        return optim.lr_scheduler.StepLR(self.optimizer, step_size=100, gamma=0.5)
     def add_history(self, train_metrics: dict, test_metrics: dict):
         for key in train_metrics:
             self.history['train_' + key].append(train_metrics[key])

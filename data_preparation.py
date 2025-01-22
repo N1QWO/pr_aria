@@ -64,7 +64,7 @@ class PreparationDataset(Dataset):
         Возвращает:
         - X_train, X_test, y_train, y_test (torch.Tensor): Разделенные данные.
         """
-        bin = torch.arange(start=0, end=550, step=10, requires_grad=False)
+        bin = torch.arange(start=0, end=550, step=10, requires_grad=False) + torch.tensor([1000])
         bin_stratify = torch.bucketize(y.to('cpu'), bin)
 
         X_train, X_test, y_train, y_test = train_test_split(

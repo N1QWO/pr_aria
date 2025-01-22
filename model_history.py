@@ -13,7 +13,7 @@ class ModelHistory:
             history (Dict[str, Any], опционально): История модели в виде словаря.
         """
         self.history = history if history is not None else {}
-
+        self.key = None 
     def save_history_json(self, filename: str, model_name: str = 'unknown') -> None:
         """
         Сохраняет историю модели в JSON-файл.
@@ -108,10 +108,10 @@ class ModelHistory:
             with open(filename, 'r', encoding='utf-8') as f:
                 data = json.load(f)
 
-                index = -1
+        index = -1
 
         if result == 'last':
-            result = self.history[-1]    
+            result = {key: value[index] for key, value in self.history.items()}    
             index = len(self.history['train_tube']) - 1
 
         if result == 'best':
@@ -136,8 +136,8 @@ class ModelHistory:
 
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
-
-        return unique_key
+        self.key = unique_key
+        return self.key
 
     def get_result_key(self, filename: str, model_name: str, key: str) -> Any:
         """

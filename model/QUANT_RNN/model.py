@@ -74,7 +74,9 @@ class QuantumBandLayer(nn.Module):
         - (torch.Tensor): Примененные активации.
         """
         safe_x = torch.clamp(x, min=-2, max=2)
-        return self.activation(safe_x) * torch.sigmoid(safe_x)
+        scaled_x = safe_x / self.temperature
+
+        return self.activation(scaled_x) * torch.sigmoid(scaled_x)
     
     def forward(self, x: torch.Tensor) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """
@@ -131,7 +133,7 @@ class QuantumBandLayer(nn.Module):
         # В противном случае возвращаем только выходные данные
         return output
 class RNN_QuantumNeuralNetwork(nn.Module):
-    def __init__(self, input_size: int, hidden_size: int, output_size: int, num_bands: int=3, device:torch.device | str ='cpu'):
+    def __init__(self, input_size: int, hidden_size: int, output_size: int, num_bands: int=3,temperature:float = 1.0, device:torch.device | str ='cpu'):
         super(RNN_QuantumNeuralNetwork, self).__init__()
     
         self.device = device
@@ -144,6 +146,7 @@ class RNN_QuantumNeuralNetwork(nn.Module):
             in_features= int(input_size + hidden_size),
             out_features=hidden_size,
             num_bands=num_bands,
+            temperature = temperature,
             device=device
         )
         #print('self.QuantumBandLayer')
@@ -200,7 +203,7 @@ class RNN_QuantumNeuralNetwork(nn.Module):
         self.device = device
         return self
 class RNN_quantum(nn.Module):
-    def __init__(self, input_size: int ,output_size: int,hidden_size: int = 32,output_sw: int = 1 ,num_layers: int = 1,device:torch.device = 'cpu'):
+    def __init__(self, input_size: int ,output_size: int,hidden_size: int = 32,output_sw: int = 1 ,num_layers: int = 1,num_bands:int  = 3,temperature:float = 1.0,device:torch.device = 'cpu'):
         super(RNN_quantum, self).__init__()
         #self.training = True
         self.device = device
@@ -209,10 +212,10 @@ class RNN_quantum(nn.Module):
         self.output_size = output_size
         self.output_s_w = output_sw
 
-        self.layers = nn.ModuleList([RNN_QuantumNeuralNetwork(input_size = input_size, hidden_size = hidden_size,output_size = hidden_size,num_bands =  1,device = device) if i == 0
-                                    else RNN_QuantumNeuralNetwork(input_size = hidden_size,hidden_size =  hidden_size,output_size = hidden_size,num_bands = 1,device= device)
+        self.layers = nn.ModuleList([RNN_QuantumNeuralNetwork(input_size = input_size, hidden_size = hidden_size,output_size = hidden_size,num_bands =  num_bands,temperature=temperature,device = device) if i == 0
+                                    else RNN_QuantumNeuralNetwork(input_size = hidden_size,hidden_size =  hidden_size,output_size = hidden_size,num_bands = num_bands,temperature=temperature,device= device)
                                         for i in range(num_layers)])
-        self.layers_follow = nn.ModuleList([RNN_QuantumNeuralNetwork(input_size = hidden_size,hidden_size =  hidden_size,output_size = hidden_size,num_bands = 1, device= device)
+        self.layers_follow = nn.ModuleList([RNN_QuantumNeuralNetwork(input_size = hidden_size,hidden_size =  hidden_size,output_size = hidden_size,num_bands = num_bands,temperature=temperature, device= device)
                                         for i in range(num_layers)])
         
         self.fc = nn.Linear(in_features = hidden_size,out_features = output_size,device = device).to(device)
@@ -302,7 +305,7 @@ class RNNTrainer:
 
     def create_scheduler(self):
         # Пример создания планировщика
-        return optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.1)
+        return optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.25)
     
     def add_history(self, train_metrics: dict, test_metrics: dict):
         for key in train_metrics:
@@ -360,8 +363,9 @@ class RNNTrainer:
         self.model.train()
         return metrics
 
-    def fit(self, X, y, X_t, y_t, batch_size, epochs, loss_tube=5):
+    def fit(self, X: torch.Tensor, y: torch.Tensor, X_t: torch.Tensor, y_t: torch.Tensor, batch_size: int, epochs:int, loss_tube:int =5):
         self.model.to(self.device)
+        self.criterion.loss_tube = loss_tube
         X = X.to(self.device)
         y = y.to(self.device)
         X_t = X_t.to(self.device)
