@@ -198,6 +198,33 @@
                 "batch_size": 32
             },
             "epoch": 84
+        },
+        "8b95383a-8a79-4569-98a1-4f0d29768dcd": {
+            "result": {
+                "train_total_loss": 0.3460766799747944,
+                "train_main_loss": 0.22242416739463805,
+                "train_mape": 0.09905659740202521,
+                "train_alpha": 0.5553709782267872,
+                "train_tube": 0.38745340512771353,
+                "test_total_loss": 0.27095112204551697,
+                "test_main_loss": 0.17551308870315552,
+                "test_mape": 0.07601147890090942,
+                "test_alpha": 0.5437659621238708,
+                "test_tube": 0.488585501909256
+            },
+            "message": "тестовое обучение",
+            "params": {
+                "input_size": 9,
+                "output_size": 1,
+                "hidden_size": 256,
+                "output_sw": 10,
+                "num_layers": 1,
+                "num_bands": 3,
+                "temperature": 0.9,
+                "lr": 0.001,
+                "batch_size": 32
+            },
+            "epoch": 44
         }
     },
     "KAN": {

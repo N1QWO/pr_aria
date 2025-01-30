@@ -20,7 +20,7 @@ class PreparationDataset(Dataset):
     - ValueError: Если возникает ошибка при загрузке файла.
     """
 
-    def __init__(self, path: Optional[str] = None, data: Optional[torch.Tensor] = None, train_test_split: bool = False):
+    def __init__(self, path: Optional[str] | None = None, data: Optional[torch.Tensor] = None, train_test_split: bool = False):
         self.all_data = torch.tensor([])
         if path is None and data is None:
             raise ValueError("Ошибка передачи ссылки или данных")
@@ -34,7 +34,7 @@ class PreparationDataset(Dataset):
 
         self.data = []  # Список для хранения признаков
         self.output = []  # Список для хранения целевых значений
-
+        self.const_reshape = 5334
     def __len__(self) -> int:
         """Возвращает количество элементов в данных."""
         return len(self.data)
@@ -143,7 +143,7 @@ class PreparationDataset(Dataset):
         if downsample_step < 1:
             raise ValueError("Параметр downsample_step должен быть >= 1")
 
-        reshaped_data = self.all_data[:, 1:].reshape(-1, 5334, num_features)
+        reshaped_data = self.all_data[:, 1:].reshape(-1, self.const_reshape, num_features)
         if downsample_step > 1:
             reshaped_data = reshaped_data[:, int(5 / 0.003)::downsample_step, :]
 
@@ -201,7 +201,7 @@ class PreparationDataset(Dataset):
         if downsample_step < 1:
             raise ValueError("Параметр downsample_step должен быть >= 1")
 
-        reshaped_data = self.all_data[:, 1:].reshape(-1, 5334, num_features)
+        reshaped_data = self.all_data[:, 1:].reshape(-1, self.const_reshape, num_features)
         if downsample_step > 1:
             reshaped_data = reshaped_data[:, int(5 / 0.003)::downsample_step, :]
 
@@ -277,19 +277,24 @@ def update_data_with_predictions(model: torch.nn.Module, df: pd.DataFrame, input
 
 
 
-
+import matplotlib.pyplot as plt
 if __name__=='__main__':
+    PARAM = (7,4,1,3)
+    window_size,num_features,downsample_step,target_window_size = PARAM
+    sample = 30
     
-
-    X = torch.rand((1000,10))*100
-    y = torch.rand((1000,1))*100+ torch.rand((1000,1))*10
-
-    PD = PreparationDataset(data=X)
-
-    X_train, X_test, y_train, y_test = PD.PDtrain_test_split(X,y)
-
-    print(X_train.shape)
-    print(X_test.shape)
-    print(y_train.shape)
-    print(y_test.shape)
+    data = torch.randint(1,10,(sample,num_features+1))
+    print(data)
+    PD = PreparationDataset(path= None,data= data)
+    PD.const_reshape = sample
+    X,y,df = PD.many_to_many(window_size,num_features,downsample_step,target_window_size)
+    print(X.shape)
+    print(y)
+    true_values = X[:,-1,0]
+    predictions = y[:,-1]
+    plt.figure(figsize=(12, 6), dpi=60)
+    plt.scatter(true_values,predictions, s=1, label='Предсказания модели') 
+    plt.scatter(true_values,y[:,-1], color='red', s=0.15, label='Истинные значения') 
+    plt.legend()
+    plt.show()
 

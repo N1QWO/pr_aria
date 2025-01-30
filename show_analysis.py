@@ -222,15 +222,15 @@ class LossVisualizer:
                     model.train()
                     
                 true_values = X[:,-1,0].to('cpu').detach().numpy() # Преобразуем в numpy сразу
-                    
+                y_val = y[:,-1].to('cpu').detach().numpy()
                     # Построение графика
                     # results['input'].append(true_values)
                     # results['predictions'].append(predictions)
                     # results['target'].append(y)  # Обрезаем до той же длины
-                
+                print(predictions[0,0],y_val[0],(predictions[0,0]-y_val[0])/y_val[0])
                 plt.figure(figsize=(12, 6), dpi=60)
                 plt.scatter(true_values,predictions, s=1, label='Предсказания модели') 
-                plt.scatter(true_values,y[:,-1].to('cpu').detach().numpy(), color='red', s=0.15, label='Истинные значения') 
+                plt.scatter(true_values,y_val, color='red', s=0.15, label='Истинные значения') 
                 plt.xlabel('Топливо')
                 plt.ylabel('Тяга')
                 plt.title(f'Max: {max_value}, Attribute: {attribute}\nКрасное: истинные значения\nСинее: предсказанные значения')
