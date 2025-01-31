@@ -225,6 +225,33 @@
                 "batch_size": 32
             },
             "epoch": 44
+        },
+        "be2f322c-0cba-4abb-b8a2-ca10b06056dc": {
+            "result": {
+                "train_total_loss": 0.5492654116587206,
+                "train_main_loss": 0.346277095079422,
+                "train_mape": 0.126320774148811,
+                "train_alpha": 0.585699549371546,
+                "train_tube": 0.3055631238763983,
+                "test_total_loss": 0.5158571600914001,
+                "test_main_loss": 0.3263137936592102,
+                "test_mape": 0.11610182374715805,
+                "test_alpha": 0.5808622241020203,
+                "test_tube": 0.3496762812137604
+            },
+            "message": "тестовое обучение",
+            "params": {
+                "input_size": 9,
+                "output_size": 1,
+                "hidden_size": 256,
+                "output_sw": 20,
+                "num_layers": 1,
+                "num_bands": 6,
+                "temperature": 0.9,
+                "lr": 0.001,
+                "batch_size": 64
+            },
+            "epoch": 85
         }
     },
     "KAN": {
