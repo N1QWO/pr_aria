@@ -227,7 +227,7 @@ class LossVisualizer:
                     # results['input'].append(true_values)
                     # results['predictions'].append(predictions)
                     # results['target'].append(y)  # Обрезаем до той же длины
-                print(predictions[0,0],y_val[0],(predictions[0,0]-y_val[0])/y_val[0])
+                #print(predictions[0,0],y_val[0],(predictions[0,0]-y_val[0])/y_val[0])
                 plt.figure(figsize=(12, 6), dpi=60)
                 plt.scatter(true_values,predictions, s=1, label='Предсказания модели') 
                 plt.scatter(true_values,y_val, color='red', s=0.15, label='Истинные значения') 
@@ -360,6 +360,7 @@ class LossVisualizer:
         plt.suptitle(f"Веса слоя: {layer_name}")
         plt.show()
 
+    
 
 if __name__=='__main__':
     mape = torch.rand((2,2))

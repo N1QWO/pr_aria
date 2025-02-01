@@ -252,6 +252,123 @@
                 "batch_size": 64
             },
             "epoch": 85
+        },
+        "a422aacb-3d12-4cc6-8fc3-53783f1571c2": {
+            "result": {
+                "train_total_loss": 0.8934701433036533,
+                "train_main_loss": 0.5463603061770425,
+                "train_mape": 0.14351155676968813,
+                "train_alpha": 0.6331319052555839,
+                "train_tube": 0.2432953517902926,
+                "test_total_loss": 0.9129526615142822,
+                "test_main_loss": 0.5580399036407471,
+                "test_mape": 0.14545133709907532,
+                "test_alpha": 0.6359989047050476,
+                "test_tube": 0.23721417784690857
+            },
+            "message": "тестовое обучение",
+            "params": {
+                "input_size": 9,
+                "output_size": 1,
+                "hidden_size": 256,
+                "output_sw": 20,
+                "num_layers": 1,
+                "num_bands": 6,
+                "temperature": 0.9,
+                "lr": 0.001,
+                "batch_size": 32
+            },
+            "epoch": 91
+        },
+        "5e0ef898-3f85-42e2-9475-118b3eebc636": {
+            "result": {
+                "train_total_loss": 0.7629008491834005,
+                "train_main_loss": 0.4719105019713893,
+                "train_mape": 0.12379439950290352,
+                "train_alpha": 0.6157900365916166,
+                "train_tube": 0.255711860277436,
+                "test_total_loss": 0.704771876335144,
+                "test_main_loss": 0.43832895159721375,
+                "test_mape": 0.11013062298297882,
+                "test_alpha": 0.6078607439994812,
+                "test_tube": 0.3042834401130676
+            },
+            "message": "тестовое обучение",
+            "params": {
+                "input_size": 9,
+                "output_size": 1,
+                "hidden_size": 512,
+                "output_sw": 20,
+                "num_layers": 1,
+                "num_bands": 3,
+                "temperature": 0.8,
+                "dropout": 0.1,
+                "dropout_band": 0.2,
+                "mn_c": [
+                    -4.0
+                ],
+                "mx_c": [
+                    4.0
+                ],
+                "c_mb": [
+                    1.0
+                ],
+                "c_bi": [
+                    0.5
+                ],
+                "lr": 0.001,
+                "batch_size": 64,
+                "window_size": 100,
+                "num_features": 9,
+                "downsample_step": 25,
+                "target_window_size": 20
+            },
+            "epoch": 75
+        },
+        "c63b1029-cf1f-46c2-b4c4-50cdce43c5a7": {
+            "result": {
+                "train_total_loss": 0.46350175248184783,
+                "train_main_loss": 0.29442765000205356,
+                "train_mape": 0.07658375353377482,
+                "train_alpha": 0.5730537859921528,
+                "train_tube": 0.3999442305359138,
+                "test_total_loss": 0.37158679962158203,
+                "test_main_loss": 0.2383042424917221,
+                "test_mape": 0.05843651294708252,
+                "test_alpha": 0.5592957139015198,
+                "test_tube": 0.5447182059288025
+            },
+            "message": "тестовое обучение",
+            "params": {
+                "input_size": 9,
+                "output_size": 1,
+                "hidden_size": 512,
+                "output_sw": 20,
+                "num_layers": 1,
+                "num_bands": 5,
+                "temperature": 0.9,
+                "dropout": 0.1,
+                "dropout_band": 0.05,
+                "mn_c": [
+                    -4.0
+                ],
+                "mx_c": [
+                    4.0
+                ],
+                "c_mb": [
+                    1.0
+                ],
+                "c_bi": [
+                    0.5
+                ],
+                "lr": 0.001,
+                "batch_size": 32,
+                "window_size": 100,
+                "num_features": 9,
+                "downsample_step": 25,
+                "target_window_size": 20
+            },
+            "epoch": 43
         }
     },
     "KAN": {

@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from typing import Tuple, Union
-
+import matplotlib as plt
    
 class QuantumBandLayer(nn.Module):
     """
@@ -21,7 +21,17 @@ class QuantumBandLayer(nn.Module):
     - device (torch.device | str): Устройство для выполнения (CPU или GPU, по умолчанию 'cpu').
     """
 
-    def __init__(self, in_features: int, out_features: int, num_bands: int = 3, temperature: float = 1.0, device: torch.device | str = 'cpu'):
+    def __init__(self, 
+                 in_features: int, 
+                 out_features: int, 
+                 num_bands: int = 3, 
+                 temperature: float = 1.0,
+                 mn_c:float = -4.0,
+                 mx_c:float = 4.0,
+                 c_mb:float = 1.0,
+                 c_bi:float = 0.5,
+                 dropout: float = 0.0,
+                 device: torch.device | str = 'cpu'):
         super(QuantumBandLayer, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
@@ -45,9 +55,15 @@ class QuantumBandLayer(nn.Module):
             nn.Linear(out_features, out_features).to(device)
             for _ in range(num_bands)
         ])
-        
+        self.dropout = nn.Dropout(dropout)
+
         self.band_mixing = nn.Parameter(torch.randn(num_bands, device=device) * 0.02)
         self.activation = nn.GELU()
+
+        self.mn_c = nn.Parameter(torch.Tensor([mn_c]),requires_grad = False)
+        self.mx_c = nn.Parameter(torch.Tensor([mx_c]),requires_grad = False)
+        self.c_mb = nn.Parameter(torch.Tensor([c_mb]),requires_grad = False)
+        self.c_bi = nn.Parameter(torch.Tensor([c_bi]),requires_grad = False)
 
     def to(self, device: torch.device | str) -> 'QuantumBandLayer':
         """
@@ -73,7 +89,8 @@ class QuantumBandLayer(nn.Module):
         Возвращает:
         - (torch.Tensor): Примененные активации.
         """
-        safe_x = torch.clamp(x, min=-2, max=2)
+        
+        safe_x = torch.clamp(x, min=self.mn_c, max=self.mx_c)
         scaled_x = safe_x / self.temperature
 
         return self.activation(scaled_x) * torch.sigmoid(scaled_x)
@@ -97,6 +114,7 @@ class QuantumBandLayer(nn.Module):
         
         # Применение каждого квантового слоя к входным данным
         band_states = [band(x) for band in self.energy_bands]
+        band_states = [self.dropout(band) for band in band_states]
         # band_states теперь содержит выходы всех квантовых слоев, упакованные в тензор
         band_states = torch.stack(band_states)
         
@@ -124,7 +142,7 @@ class QuantumBandLayer(nn.Module):
         )
         
         # Вычисление выходных данных как сумма смешанного состояния и взаимодействий полос
-        output = mixed_state + 0.5 * band_interactions
+        output = self.c_mb * mixed_state + self.c_bi * band_interactions
         
         # Если модель в режиме обучения, возвращаем выходные данные и квантовые состояния
         if self.training:
@@ -133,13 +151,22 @@ class QuantumBandLayer(nn.Module):
         # В противном случае возвращаем только выходные данные
         return output
 class RNN_QuantumNeuralNetwork(nn.Module):
-    def __init__(self, input_size: int, hidden_size: int, output_size: int, num_bands: int=3,temperature:float = 1.0, device:torch.device | str ='cpu'):
+    def __init__(self, 
+                 input_size: int, 
+                 hidden_size: int, 
+                 output_size: int, 
+                 num_bands: int=3,
+                 temperature:float = 1.0,
+                 dropout: float = 0.1, 
+                 dropout_band: float = 0.0, 
+                 mn_c:float = -4.0,
+                 mx_c:float = 4.0,
+                 c_mb:float = 1.0,
+                 c_bi:float = 0.5,
+                 device:torch.device | str ='cpu'):
         super(RNN_QuantumNeuralNetwork, self).__init__()
     
         self.device = device
-        #print('self.device',self.device)
-        # self.training = True
-        #print('self.training',self.training)
 
         # Первый квантовый слой
         self.quantum_layer1 = QuantumBandLayer(
@@ -147,31 +174,25 @@ class RNN_QuantumNeuralNetwork(nn.Module):
             out_features=hidden_size,
             num_bands=num_bands,
             temperature = temperature,
+            mn_c = mn_c,
+            mx_c = mx_c,
+            c_mb= c_mb,
+            c_bi=c_bi,
+            dropout = dropout_band,
             device=device
         )
-        #print('self.QuantumBandLayer')
         self.norm1 = nn.LayerNorm(hidden_size).to(device)
-        #print('self.norm1')
-        self.dropout1 = nn.Dropout(0.1)
-        #print('self.Dropout')
-
-        # Второй квантовый слой
-        # self.quantum_layer2 = QuantumBandLayer(
-        #     in_features=hidden_size,
-        #     out_features=hidden_size,
-        #     num_bands=num_bands,
-        #     device=device
-        # )
-        # self.norm2 = nn.LayerNorm(hidden_size).to(device)
-        # self.dropout2 = nn.Dropout(0.1)
-
+        self.dropout1 = nn.Dropout(dropout)
         # Выходной слой
         self.output_layer = nn.Linear(hidden_size, output_size).to(device)
         self.h_s = nn.Linear(hidden_size, hidden_size).to(device)
 
-    def forward(self, x,h_s):
-        x = x.to(self.device)
-        x = torch.cat((x,h_s),dim = 1)
+    def forward(self, x = None,h_s = None):
+        if x!=None:
+            x = x.to(self.device)
+            x = torch.cat((x,h_s),dim = 1)
+        else:
+            x = h_s
         # quantum_states = []
         # Первый квантовый блок
         if self.training:
@@ -203,7 +224,21 @@ class RNN_QuantumNeuralNetwork(nn.Module):
         self.device = device
         return self
 class RNN_quantum(nn.Module):
-    def __init__(self, input_size: int ,output_size: int,hidden_size: int = 32,output_sw: int = 1 ,num_layers: int = 1,num_bands:int  = 3,temperature:float = 1.0,device:torch.device = 'cpu'):
+    def __init__(self, 
+                 input_size: int ,
+                 output_size: int,
+                 hidden_size: int = 32,
+                 output_sw: int = 1 ,
+                 num_layers: int = 1,
+                 num_bands:int  = 3,
+                 temperature:float = 1.0,
+                 dropout: float = 0.1, 
+                 dropout_band: float = 0.0,
+                 mn_c:float = -4.0,
+                 mx_c:float = 4.0,
+                 c_mb:float = 1.0,
+                 c_bi:float = 0.5,
+                 device:torch.device = 'cpu'):
         super(RNN_quantum, self).__init__()
         #self.training = True
         self.device = device
@@ -212,10 +247,43 @@ class RNN_quantum(nn.Module):
         self.output_size = output_size
         self.output_s_w = output_sw
 
-        self.layers = nn.ModuleList([RNN_QuantumNeuralNetwork(input_size = input_size, hidden_size = hidden_size,output_size = hidden_size,num_bands =  num_bands,temperature=temperature,device = device) if i == 0
-                                    else RNN_QuantumNeuralNetwork(input_size = hidden_size,hidden_size =  hidden_size,output_size = hidden_size,num_bands = num_bands,temperature=temperature,device= device)
+        self.layers = nn.ModuleList([RNN_QuantumNeuralNetwork(input_size = input_size, 
+                                                              hidden_size = hidden_size,
+                                                              output_size = hidden_size,
+                                                              num_bands =  num_bands,
+                                                              temperature=temperature,
+                                                              dropout = dropout,
+                                                              dropout_band = dropout_band,
+                                                              mn_c = mn_c,
+                                                              mx_c = mx_c,
+                                                              c_mb= c_mb,
+                                                              c_bi=c_bi,
+                                                              device = device) if i == 0
+                                    else RNN_QuantumNeuralNetwork(input_size = hidden_size,
+                                                                  hidden_size =  hidden_size,
+                                                                  output_size = hidden_size,
+                                                                  num_bands = num_bands,
+                                                                  temperature=temperature,
+                                                                  dropout=dropout,
+                                                                  dropout_band = dropout_band,
+                                                                  mn_c = mn_c,
+                                                                  mx_c = mx_c,
+                                                                  c_mb= c_mb,
+                                                                  c_bi=c_bi,
+                                                                  device= device)
                                         for i in range(num_layers)])
-        self.layers_follow = nn.ModuleList([RNN_QuantumNeuralNetwork(input_size = hidden_size,hidden_size =  hidden_size,output_size = hidden_size,num_bands = num_bands,temperature=temperature, device= device)
+        self.layers_follow = nn.ModuleList([RNN_QuantumNeuralNetwork(input_size = 0,
+                                                                     hidden_size =  hidden_size,
+                                                                     output_size = hidden_size,
+                                                                     num_bands = num_bands,
+                                                                     temperature=temperature, 
+                                                                     dropout=dropout,
+                                                                     dropout_band=  dropout_band,
+                                                                     mn_c = mn_c,
+                                                                     mx_c = mx_c,
+                                                                     c_mb= c_mb,
+                                                                     c_bi=c_bi,
+                                                                     device= device)
                                         for i in range(num_layers)])
         
         self.fc = nn.Linear(in_features = hidden_size,out_features = output_size,device = device).to(device)
@@ -230,21 +298,12 @@ class RNN_quantum(nn.Module):
         for t in range(l + self.output_s_w):
             if t< x.size(1):
                 input_t = x[:, t, :]  # Вход на текущем временном шаге
-            
-
                 for i, layer in enumerate(self.layers):
-                    # if self.training:
                     h[i] = layer(input_t, h[i])
-                    # else:
-                    #     h[i]  = layer(input_t, h[i])
-                    input_t = h[i]  # Передаем выход текущего слоя на вход следующему
-
+                    input_t = h[i] 
             else:
                 for i, layer in enumerate(self.layers_follow):
-                    # if self.training:
-                    h[i] = layer(h[i], h[i])
-                    # else:
-                    #     h[i]  = layer(h[i], h[i])
+                    h[i] = layer(None, h[i])
                 output[:,t - l] = self.fc(h[-1]).squeeze()
 
         return output
@@ -302,10 +361,12 @@ class RNNTrainer:
             'test_alpha': [],
             'test_tube': []
         }
+        self.weights_history = []
+
 
     def create_scheduler(self):
         # Пример создания планировщика
-        return optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.25)
+        return optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.25,last_epoch = 70)
     
     def add_history(self, train_metrics: dict, test_metrics: dict):
         for key in train_metrics:
@@ -363,7 +424,7 @@ class RNNTrainer:
         self.model.train()
         return metrics
 
-    def fit(self, X: torch.Tensor, y: torch.Tensor, X_t: torch.Tensor, y_t: torch.Tensor, batch_size: int, epochs:int, loss_tube:int =5):
+    def fit(self, X: torch.Tensor, y: torch.Tensor, X_t: torch.Tensor, y_t: torch.Tensor, batch_size: int, epochs:int, loss_tube:int =5, weight_i = False,info =False):
         self.model.to(self.device)
         self.criterion.loss_tube = loss_tube
         X = X.to(self.device)
@@ -389,6 +450,20 @@ class RNNTrainer:
             if (test_metrics['tube'].item() +  train_metrics['mape'])/2 < best_test_mape:
                 best_test_mape = (test_metrics['tube'].item() +  train_metrics['mape'])/2
                 best_model_weights = self.model.state_dict().copy()
+            if weight_i:
+                self.weights_history.append([param.data.numpy().copy() for param in self.model.parameters()])
+            if info:
+                
+                w_c = self.model.layer.quantum_layer1.transition_weights.cpu().numpy()
+                l_wc = len(w_c)
+                plt.figure(figsize=(10, 6))
+                plt.title(f"Epoch {epoch}, Batch {epoch}: Transition Weights")
+                for i in range(l_wc):
+                    for j in range(l_wc):
+                        plt.plot(w_c[i, j], label=f'Band {i}->{j}')
+                plt.legend()
+                plt.show()
+                
             # Вывод прогресса
             if (epoch + 1) % self.inf_per_epoch == 0 or epoch == 9:
                 print(
@@ -397,8 +472,12 @@ class RNNTrainer:
                     f'Main: {train_metrics["main_loss"]:.6f}, '
                     #f'Quantum: {train_metrics["quantum_loss"]:.6f}, '
                     f'MAPE: {train_metrics["mape"]:.6f}, '
-                    f'Alpha: {train_metrics["alpha"]:.6f}\n'
-                    f'Test - MAPE: {test_metrics["mape"]:.6f}, '
+                    f'Alpha: {train_metrics["alpha"]:.6f} '
+                    f'Tube: {train_metrics["tube"]:.6f}\n'
+                    f'Test - Total: {test_metrics["total_loss"]:.6f}, '
+                    f'Main: {test_metrics["main_loss"]:.6f}, '
+                    f'MAPE: {test_metrics["mape"]:.6f}, '
+                    f'Alpha: {test_metrics["alpha"]:.6f}, '
                     f'Tube: {test_metrics["tube"]:.6f}'
                 )
         torch.save(best_model_weights, 'best_model_weights.pth')
