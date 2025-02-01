@@ -1,6 +1,9 @@
 import torch
 import torch.nn as nn
+import torch.optim as optim
 from sklearn.model_selection import train_test_split
+from kan.KANLayer import *
+import torch.nn.functional as F
 
 def mape(y_pred,y):
     loss_rd = torch.abs(y - y_pred) / torch.clamp(y, min=1e-7)
@@ -10,7 +13,100 @@ def tube(y_pred,y):
     loss_rd = torch.abs(y - y_pred) / torch.clamp(y, min=1e-7)
     rt = (loss_rd < 0.05).sum() / loss_rd.numel()
     return rt
+class AdaptiveLoss(nn.Module):
+    def __init__(self, delta: float = 0.01):
+        super(AdaptiveLoss, self).__init__()
+        self.loss = nn.HuberLoss(delta=delta)
+        self.loss_tube = None
+        #self.mse = nn.MSELoss()
+        
+    def forward(self, pred: torch.tensor, target: torch.tensor) -> dict:
+        #пока так но надо лучше
+        main_loss = self.loss(pred, target)
+        
+        # MAPE для мониторинга
+        mape = torch.abs(target - pred) / torch.clamp(target, min=1e-7)
+        per_loss_rd = (mape < 0.01 * self.loss_tube).sum() / (mape.numel())
+        return {
+            'main_loss': main_loss,
+            'mape': torch.mean(mape),
+            'tube': per_loss_rd
+        } 
+class KANPERCE(nn.Module):
+    def __init__(self,
+                 in_dim: int,
+                 out_dim: int,
+                 hid: int,
+                 dropout: float = 0.1,
+                 num: int = 5,
+                 k: int = 3,
+                 noise_scale: float = 0.5,
+                 scale_base_mu: float = 0,
+                 scale_base_sigma: float = 1,
+                 scale_sp: float = 1,
+                 base_fun=torch.nn.functional.silu,  # Используем функцию, а не модуль
+                 grid_eps: float = 0.02,
+                 grid_range=[-1, 1],
+                 device: torch.device | str = 'cpu'):
+        super(KANPERCE, self).__init__()
 
+        # Убедимся, что device - это torch.device
+        self.device = torch.device(device) if isinstance(device, str) else device
+
+        # Преобразуем grid_range в тензор
+       # grid_range = torch.tensor(grid_range, device=self.device)
+
+        # Определяем слои
+        self.fc1 = nn.Linear(in_features=in_dim, out_features=hid, device=self.device)
+        self.kanl1 = KANLayer(
+            in_dim=hid,
+            out_dim=hid ,
+            k=k,
+            num=num,
+            noise_scale=noise_scale,
+            scale_base_mu=scale_base_mu,
+            scale_base_sigma=scale_base_sigma,
+            scale_sp=scale_sp,
+            base_fun=base_fun,
+            grid_eps=grid_eps,
+            grid_range=grid_range,
+            device=self.device
+        )
+        # self.kanl2 = KANLayer(
+        #     in_dim=hid * 2,
+        #     out_dim=hid,
+        #     k=k,
+        #     num=num,
+        #     noise_scale=noise_scale,
+        #     scale_base_mu=scale_base_mu,
+        #     scale_base_sigma=scale_base_sigma,
+        #     scale_sp=scale_sp,
+        #     base_fun=base_fun,
+        #     grid_eps=grid_eps,
+        #     grid_range=grid_range,
+        #     device=self.device
+        # )
+        self.kanl2 = KANLayer(
+            in_dim=hid,
+            out_dim=out_dim,
+            num=num,
+            k=k,
+            noise_scale=noise_scale,
+            scale_base_mu=scale_base_mu,
+            scale_base_sigma=scale_base_sigma,
+            scale_sp=scale_sp,
+            base_fun=base_fun,
+            grid_eps=grid_eps,
+            grid_range=grid_range,
+            device=self.device
+        )
+
+    def forward(self, x: torch.Tensor):
+        x = self.fc1(x)
+        x, _, _, _ = self.kanl1(x)
+        x, _, _, _ = self.kanl2(x)
+
+        return x
 class KANTrainer:
     """
     Класс для обучения квантовой нейронной сети.
@@ -24,11 +120,22 @@ class KANTrainer:
     - device (str): Устройство для выполнения (CPU или GPU, по умолчанию 'cpu').
     """
 
-    def __init__(self, model: nn.Module, learning_rate: float = 0.001, device: torch.device | str = 'cpu'):
+    def __init__(self, model: nn.Module, learning_rate: float = 0.001,fit2:bool = False,inf_per_epoch:int = 10,device: torch.device | str = 'cpu'):
         self.model = model
         self.device = device
         self.learning_rate = learning_rate
-
+        if fit2:
+            self.criterion = AdaptiveLoss()  # Используем MSELoss + Hyber 
+            self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
+            self.inf_per_epoch = inf_per_epoch
+            self.history = {
+                        'train_main_loss': [],
+                        'train_mape': [],
+                        'train_tube': [],
+                        'test_main_loss': [],
+                        'test_mape': [],
+                        'test_tube': []
+                    }
 
     def evaluate(self, X: torch.Tensor, y: torch.Tensor, loss_tube: float = 5) -> tuple:
         """
@@ -55,6 +162,97 @@ class KANTrainer:
         return metrics, per_loss_rd
 
 
+    def create_scheduler(self):
+        # Пример создания планировщика
+        return optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.9)
+
+    def train_epoch(self, X: torch.Tensor, y: torch.Tensor, batch_size: int) -> dict:
+        dataset_size = X.shape[0]
+        indices = torch.randperm(dataset_size)
+        X_shuffled = X[indices].to(self.device)
+        y_shuffled = y[indices].to(self.device)
+        
+        epoch_metrics = {
+            'main_loss': 0.0,
+            'mape': 0.0,
+        }
+        n_batches = 0
+        
+        for i in range(0, dataset_size, batch_size):
+            X_batch = X_shuffled[i:i+batch_size]
+            y_batch = y_shuffled[i:i+batch_size]
+            #print(y_batch.shape)
+            self.optimizer.zero_grad()
+            
+            # В режиме train модель возвращает (predictions)
+            predictions = self.model(X_batch)
+            #print(predictions.shape)
+            metrics = self.criterion(predictions, y_batch)
+            metrics['main_loss'].backward()
+            
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+            self.optimizer.step()
+            
+            for key in epoch_metrics:
+                epoch_metrics[key] += metrics[key].item()
+            n_batches += 1
+            
+        return {k: v / n_batches for k, v in epoch_metrics.items()}
+
+    def evaluate(self, X: torch.Tensor, y: torch.Tensor, loss_tube: float | int = 5):
+        self.model.eval()
+        with torch.no_grad():
+            # В режиме eval модель возвращает только предсказания
+            y_pred  = self.model(X)
+            metrics = self.criterion(y_pred, y)
+            
+        
+        self.model.train()
+        return metrics
+    
+    def add_history(self, train_metrics: dict, test_metrics: dict):
+        for key in train_metrics:
+            self.history['train_' + key].append(train_metrics[key])
+        for key in test_metrics:
+            self.history['test_' + key].append(test_metrics[key].item())
+    
+    def fit2(self, X: torch.Tensor, y: torch.Tensor, X_t: torch.Tensor, y_t: torch.Tensor, batch_size: int = 512, epochs:int = 100, loss_tube: int = 5) -> dict:
+        self.model.to(self.device)
+        self.criterion.loss_tube = loss_tube
+        X = X.to(self.device)
+        y = y.to(self.device)
+        X_t = X_t.to(self.device)
+        y_t = y_t.to(self.device)
+        scheduler = self.create_scheduler()
+        best_test_mape = float('inf')
+        best_model_weights = None
+        
+        for epoch in range(epochs):
+            # Обучение на эпохе
+            train_metrics = self.train_epoch(X, y, batch_size)
+            
+            # Шаг планировщика
+            scheduler.step()
+            
+            # Оценка на тестовых данных
+            test_metrics = self.evaluate(X_t, y_t, loss_tube)
+            self.add_history(train_metrics,test_metrics)
+
+            if (test_metrics['tube'].item() +  train_metrics['mape'])/2 < best_test_mape:
+                best_test_mape = (test_metrics['tube'].item() +  train_metrics['mape'])/2
+                best_model_weights = self.model.state_dict().copy()
+            
+            # Вывод прогресса
+            if (epoch + 1) % self.inf_per_epoch == 0 or epoch == 9:
+                print(
+                    f'Epoch {epoch + 1}\n'
+                    f'Main: {train_metrics["main_loss"]:.6f}, '
+                    f'MAPE: {train_metrics["mape"]:.6f}\n'
+                    f'Test - MAPE: {test_metrics["mape"]:.6f}, '
+                    f'Tube: {test_metrics["tube"]:.6f}'
+                )
+        torch.save(best_model_weights, 'best_model_weights.pth')
+        return self.history 
         
     def fit(self, X: torch.Tensor, y: torch.Tensor, X_t: torch.Tensor, y_t: torch.Tensor, batch_size: int, epochs: int, loss_tube: float = 5) -> dict:
         """
@@ -84,6 +282,7 @@ class KANTrainer:
         # }
         dataset = {'train_input':X, 'test_input':X_t, 'train_label':y, 'test_label':y_t}
         history = self.model.fit(dataset, opt='LBFGS', steps=epochs, lamb=self.learning_rate,metrics = [mape,tube] ,batch = batch_size)
+        
         # for epoch in range(epochs):
         #     # Обучение на эпохе
         #     train_metrics = self.train_epoch(X, y, batch_size)

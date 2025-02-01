@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple, Union
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -6,17 +6,16 @@ import torch.nn as nn
 import pandas as pd
 
 
-
 class LossVisualizer:
     """
-    Класс для визуализации потерь и метрик модели.
+    Класс для визуализации потерь, метрик и весов модели.
 
     Параметры:
-    - losses (dict): Словарь, содержащий метрики потерь и оценки.
-    - data (optional): Дополнительные данные для визуализации (по умолчанию None).
+    - losses (Dict[str, list]): Словарь, содержащий метрики потерь и оценки.
+    - data (Optional[any]): Дополнительные данные для визуализации (по умолчанию None).
 
     Пример:
-        losses: {
+        losses = {
             'train_total_loss': [],
             'train_main_loss': [],
             'train_quantum_loss': [],
@@ -24,7 +23,7 @@ class LossVisualizer:
             'train_alpha': [],
             'test_mape': [],
             'test_tube': []
-            }
+        }
     """
 
     def __init__(self, losses: Dict[str, list], data: Optional[any] = None):
@@ -32,101 +31,148 @@ class LossVisualizer:
         self.data = data
         self.model = None
 
-    def show_training_loss(self) -> None:
-        """Отображает график основной функции потерь во время обучения."""
-        main_loss = self.losses['train_main_loss']
+    def show_training_loss(self, figsize: Tuple[int, int] = (12, 6), dpi: int = 60) -> None:
+        """
+        Отображает график основной функции потерь во время обучения.
 
-        plt.figure(figsize=(12, 6), dpi=60)
-        plt.plot(main_loss, label='Основная потеря', color='blue', alpha=0.7)
-        plt.xlabel('Эпоха обучения')  # Подпись оси X
-        plt.ylabel('Значение функции потерь')  # Подпись оси Y
+        Параметры:
+        - figsize (Tuple[int, int]): Размер графика. По умолчанию (12, 6).
+        - dpi (int): Разрешение графика. По умолчанию 60.
+        """
+        if 'train_main_loss' not in self.losses:
+            raise KeyError("Ключ 'train_main_loss' отсутствует в losses.")
+
+        plt.figure(figsize=figsize, dpi=dpi)
+        plt.plot(self.losses['train_main_loss'], label='Основная потеря', color='blue', alpha=0.7)
+        plt.xlabel('Эпоха обучения')
+        plt.ylabel('Значение функции потерь')
         plt.title('График основной функции потерь')
         plt.legend()
         plt.show()
 
-    def show_test_tube(self) -> None:
-        """Отображает график отношения количества попаданий данных в 5% барьер на тестовых данных."""
-        test_tube = self.losses['test_tube']
+    def show_test_tube(self, figsize: Tuple[int, int] = (12, 6), dpi: int = 60) -> None:
+        """
+        Отображает график отношения количества попаданий данных в 5% барьер на тестовых данных.
 
-        plt.figure(figsize=(12, 6), dpi=60)
-        plt.plot(test_tube, label='Отношение попаданий', color='green', alpha=0.7)
-        plt.xlabel('Эпоха обучения')  # Подпись оси X
-        plt.ylabel('Отношение попаданий в 5% барьер')  # Подпись оси Y
+        Параметры:
+        - figsize (Tuple[int, int]): Размер графика. По умолчанию (12, 6).
+        - dpi (int): Разрешение графика. По умолчанию 60.
+        """
+        if 'test_tube' not in self.losses:
+            raise KeyError("Ключ 'test_tube' отсутствует в losses.")
+
+        plt.figure(figsize=figsize, dpi=dpi)
+        plt.plot(self.losses['test_tube'], label='Отношение попаданий', color='green', alpha=0.7)
+        plt.xlabel('Эпоха обучения')
+        plt.ylabel('Отношение попаданий в 5% барьер')
         plt.title('График отношения попаданий на тестовых данных')
         plt.legend()
         plt.show()
 
-    def show_mape(self, show_all: bool = True, show_chip: bool = True, start_epoch: Optional[int] = None) -> None:
+    def show_mape(
+        self,
+        show_all: bool = True,
+        show_chip: bool = True,
+        start_epoch: Optional[int] = None,
+        figsize: Tuple[int, int] = (12, 6),
+        dpi: int = 60
+    ) -> None:
         """
         Отображает графики MAPE для обучающей и тестовой выборок.
 
         Параметры:
-        - show_all (bool): Отображать ли все эпохи (по умолчанию True).
-        - show_chip (bool): Отображать ли первые 150 эпох (по умолчанию True).
-        - start_epoch (optional): Начальная эпоха для отображения (по умолчанию None).
+        - show_all (bool): Отображать ли все эпохи. По умолчанию True.
+        - show_chip (bool): Отображать ли первые 150 эпох. По умолчанию True.
+        - start_epoch (Optional[int]): Начальная эпоха для отображения. По умолчанию None.
+        - figsize (Tuple[int, int]): Размер графика. По умолчанию (12, 6).
+        - dpi (int): Разрешение графика. По умолчанию 60.
         """
+        if 'train_mape' not in self.losses or 'test_mape' not in self.losses:
+            raise KeyError("Ключи 'train_mape' или 'test_mape' отсутствуют в losses.")
+
         train_mape = self.losses['train_mape']
         test_mape = self.losses['test_mape']
 
         if show_all:
-            plt.figure(figsize=(12, 6), dpi=60)
-            plt.plot(train_mape, label='Ошибка на обучающей выборке', alpha=0.7)
-            plt.plot(test_mape, label='Ошибка на тестовой выборке', color='red')
-            plt.xlabel('Эпоха обучения')  
-            plt.ylabel('Значение MAPE')  
-            plt.title('График MAPE для обучающей и тестовой выборок')
-            plt.legend()
-            plt.show()
+            self._plot_mape(train_mape, test_mape, "График MAPE для обучающей и тестовой выборок", figsize, dpi)
 
         if show_chip:
-            plt.figure(figsize=(12, 6), dpi=60)
-            plt.plot(train_mape[:150], label='Ошибка на обучающей выборке', alpha=0.7)
-            plt.plot(test_mape[:150], label='Ошибка на тестовой выборке', color='red')
-            plt.xlabel('Эпоха обучения')  
-            plt.ylabel('Значение MAPE')  
-            plt.title('График MAPE для первых 150 эпох')
-            plt.legend()
-            plt.show()
+            self._plot_mape(train_mape[:150], test_mape[:150], "График MAPE для первых 150 эпох", figsize, dpi)
 
         if start_epoch is not None:
-            plt.figure(figsize=(12, 6), dpi=60)
-            plt.plot(train_mape[start_epoch:], label='Ошибка на обучающей выборке', alpha=0.7)
-            plt.plot(test_mape[start_epoch:], label='Ошибка на тестовой выборке', color='red')
-            plt.xlabel('Эпоха обучения')  
-            plt.ylabel('Значение MAPE')  
-            plt.title(f'График MAPE, начиная с эпохи {start_epoch}')
-            plt.legend()
-            plt.show()
+            self._plot_mape(
+                train_mape[start_epoch:],
+                test_mape[start_epoch:],
+                f'График MAPE, начиная с эпохи {start_epoch}',
+                figsize,
+                dpi
+            )
 
-    def histogram_mape(self, model: nn.Module, X: torch.Tensor, target: torch.Tensor, limit_percel: float | None = None,keras = False) -> None:
-        """Отображает гистограмму распределения MAPE на тестовых данных."""
+    def _plot_mape(
+        self,
+        train_mape: list,
+        test_mape: list,
+        title: str,
+        figsize: Tuple[int, int],
+        dpi: int
+    ) -> None:
+        """Вспомогательный метод для построения графиков MAPE."""
+        plt.figure(figsize=figsize, dpi=dpi)
+        plt.plot(train_mape, label='Ошибка на обучающей выборке', alpha=0.7)
+        plt.plot(test_mape, label='Ошибка на тестовой выборке', color='red')
+        plt.xlabel('Эпоха обучения')
+        plt.ylabel('Значение MAPE')
+        plt.title(title)
+        plt.legend()
+        plt.show()
+
+    def histogram_mape(
+        self,
+        model: nn.Module,
+        X: torch.Tensor,
+        target: torch.Tensor,
+        limit_percel: Optional[float] = None,
+        keras: bool = False,
+        figsize: Tuple[int, int] = (12, 6),
+        dpi: int = 80
+    ) -> None:
+        """
+        Отображает гистограмму распределения MAPE на тестовых данных.
+
+        Параметры:
+        - model (nn.Module): Модель для предсказаний.
+        - X (torch.Tensor): Входные данные.
+        - target (torch.Tensor): Целевые значения.
+        - limit_percel (Optional[float]): Порог для фильтрации значений MAPE. По умолчанию None.
+        - keras (bool): Использовать ли модель Keras. По умолчанию False.
+        - figsize (Tuple[int, int]): Размер графика. По умолчанию (12, 6).
+        - dpi (int): Разрешение графика. По умолчанию 80.
+        """
         if keras:
             pred = model.predict(X)
         else:
+            model.eval()
             pred = model.forward(X).to('cpu')
+            model.train()
 
         target = target.to('cpu')
         mape = torch.abs(target - pred) / torch.clamp(target, min=1e-7)
-        per_loss_rd = (mape < 0.01 * limit_percel).sum().item() / (mape.numel())
-        # Проверка размерности MAPE
-        mape = mape.view(-1)
-        # Фильтрация значений MAPE
-        if limit_percel is not None:
-            low_mape_values = mape[mape<0.01*limit_percel]
-            lete = f'< {0.01 * limit_percel}' 
-        else:
-            low_mape_values = mape
-            lete = 'всех значения'
+        per_loss_rd = (mape < 0.01 * limit_percel).sum().item() / (mape.numel()) if limit_percel else 1.0
 
-        plt.figure(figsize=(12, 6), dpi=80)
-        plt.hist(low_mape_values.detach().numpy(), bins=100, edgecolor='black')  
-        plt.xlabel('Значения MAPE')  
-        plt.ylabel('Количество примеров')  
-        plt.title(f'Распределение метрики MAPE на тестовых данных {lete}: {per_loss_rd:.4}')  
-        plt.show()  
+        mape = mape.view(-1)
+        low_mape_values = mape[mape < 0.01 * limit_percel] if limit_percel else mape
+        lete = f'< {0.01 * limit_percel}' if limit_percel else 'всех значения'
+
+        plt.figure(figsize=figsize, dpi=dpi)
+        plt.hist(low_mape_values.detach().numpy(), bins=100, edgecolor='black')
+        plt.xlabel('Значения MAPE')
+        plt.ylabel('Количество примеров')
+        plt.title(f'Распределение метрики MAPE на тестовых данных {lete}: {per_loss_rd:.4}')
+        plt.show()
 
         print(f'Процент значений MAPE {lete}: {per_loss_rd:.4}')
 
+        
     def show_predictions_rnn(self,
                 model: nn.Module, 
                 df: pd.DataFrame,
@@ -171,18 +217,20 @@ class LossVisualizer:
                 if keras:
                     predictions = model.predict(X)[:, -1].to('cpu').detach().numpy()
                 else:
+                    model.eval()
                     predictions = model.forward(X)[:, -1].to('cpu').detach().numpy()
+                    model.train()
                     
                 true_values = X[:,-1,0].to('cpu').detach().numpy() # Преобразуем в numpy сразу
-                    
+                y_val = y[:,-1].to('cpu').detach().numpy()
                     # Построение графика
                     # results['input'].append(true_values)
                     # results['predictions'].append(predictions)
                     # results['target'].append(y)  # Обрезаем до той же длины
-                
+                #print(predictions[0,0],y_val[0],(predictions[0,0]-y_val[0])/y_val[0])
                 plt.figure(figsize=(12, 6), dpi=60)
                 plt.scatter(true_values,predictions, s=1, label='Предсказания модели') 
-                plt.scatter(true_values,y[:,-1].to('cpu').detach().numpy(), color='red', s=0.15, label='Истинные значения') 
+                plt.scatter(true_values,y_val, color='red', s=0.15, label='Истинные значения') 
                 plt.xlabel('Топливо')
                 plt.ylabel('Тяга')
                 plt.title(f'Max: {max_value}, Attribute: {attribute}\nКрасное: истинные значения\nСинее: предсказанные значения')
@@ -220,7 +268,9 @@ class LossVisualizer:
                 if keras:
                     predictions = model.predict(X).to('cpu').detach().numpy()
                 else:
+                    model.eval()
                     predictions = model.forward(X).to('cpu').detach().numpy()
+                    model.train()
                     
                 true_values = X[:,-9].to('cpu').detach().numpy() 
                     
@@ -232,6 +282,85 @@ class LossVisualizer:
                 plt.title(f'Max: {max_value}, Attribute: {attribute}\nКрасное: истинные значения\nСинее: предсказанные значения')
                 plt.legend()
                 plt.show()
+
+
+    def show_weight(self, model: nn.Module, figsize: tuple = (8, 6), dpi: int = 60, cmap: str = 'viridis') -> None:
+        """
+        Визуализирует все параметры модели (веса).
+
+        Аргументы:
+            model (nn.Module): Модель, веса которой нужно визуализировать.
+            figsize (tuple, опционально): Размер фигур для визуализации. По умолчанию (8, 6).
+            dpi (int, опционально): Разрешение фигур. По умолчанию 60.
+            cmap (str, опционально): Цветовая карта для визуализации. По умолчанию 'viridis'.
+
+        Возвращает:
+            None
+        """
+        for name, param in model.named_parameters():
+            if 'weight' in name:  # Извлекаем только веса (игнорируем смещения)
+                print(f"Слой: {name}, Размер: {param.shape}")
+                weights = param.to('cpu').detach().numpy()  # Преобразуем в numpy для визуализации
+
+                if len(weights.shape) == 2:  # Для полносвязных слоев
+                    self._visualize_fc_layer(weights, name, figsize, dpi, cmap)
+                elif len(weights.shape) == 4:  # Для сверточных слоев
+                    self._visualize_conv_layer(weights, name, figsize, dpi, cmap)
+                else:
+                    print(f"Визуализация для слоя {name} с размерностью {weights.shape} не поддерживается.")
+
+
+    def _visualize_fc_layer(self, weights: np.ndarray, layer_name: str, figsize: tuple, dpi: int, cmap: str) -> None:
+        """
+        Визуализирует веса полносвязного слоя.
+
+        Аргументы:
+            weights (np.ndarray): Веса слоя.
+            layer_name (str): Имя слоя.
+            figsize (tuple): Размер фигуры.
+            dpi (int): Разрешение фигуры.
+            cmap (str): Цветовая карта.
+
+        Возвращает:
+            None
+        """
+        plt.figure(figsize=figsize, dpi=dpi)
+        plt.imshow(weights, cmap=cmap, aspect='auto')
+        plt.colorbar()
+        plt.title(f"Веса слоя: {layer_name}")
+        plt.xlabel("Входные нейроны")
+        plt.ylabel("Выходные нейроны")
+        plt.show()
+
+
+    def _visualize_conv_layer(self, weights: np.ndarray, layer_name: str, figsize: tuple, dpi: int, cmap: str) -> None:
+        """
+        Визуализирует веса сверточного слоя.
+
+        Аргументы:
+            weights (np.ndarray): Веса слоя.
+            layer_name (str): Имя слоя.
+            figsize (tuple): Размер фигуры.
+            dpi (int): Разрешение фигуры.
+            cmap (str): Цветовая карта.
+
+        Возвращает:
+            None
+        """
+        num_filters = weights.shape[0]
+        fig, axes = plt.subplots(1, num_filters, figsize=(15, 5), dpi=dpi)
+        if num_filters == 1:
+            axes = [axes]  # Для случая с одним фильтром
+
+        for i, ax in enumerate(axes):
+            ax.imshow(weights[i, 0], cmap=cmap)  # Первый канал (входной)
+            ax.set_title(f"Фильтр {i + 1}")
+            ax.axis('off')
+
+        plt.suptitle(f"Веса слоя: {layer_name}")
+        plt.show()
+
+    
 
 if __name__=='__main__':
     mape = torch.rand((2,2))

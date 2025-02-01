@@ -45,7 +45,7 @@ class SelfAttention(nn.Module):
         Инициализация весов слоев нормальным распределением.
         """
         for layer in [self.query, self.key, self.value, self.fc_out]:
-            nn.init.normal_(layer.weight, mean=0.0, std=0.02)
+            nn.init.normal_(layer.weight, mean=0.0, std=10)
             if layer.bias is not None:
                 nn.init.constant_(layer.bias, 0)
 
@@ -77,7 +77,7 @@ class SelfAttention(nn.Module):
         out = out.transpose(1, 2).contiguous().view(batch_size, seq_len, embed_dim)
 
         out = self.fc_out(out)
-        out = self.dropout(out)  # Применяем Dropout
+        #out = self.dropout(out)  # Применяем Dropout
 
         return out
 
@@ -112,19 +112,32 @@ class FeedForwardRegression(nn.Module):
         Возвращает:
         - Tensor: Выходные данные с размерностью (batch_size, output_dim).
         """
-        x = F.relu(self.fc1(x))
+        x = F.gelu(self.fc2(x))
         x = self.dropout(x)  # Применяем Dropout
-        x = F.relu(self.fc2(x))
+        x = F.gelu(self.fc2(x))
         x = self.dropout(x)  # Применяем Dropout
         x = self.fc3(x)
         return x
+    
+class AttentionPooling(nn.Module):
+    def __init__(self, hidden_dim: int):
+        super(AttentionPooling, self).__init__()
+        self.attention = nn.Linear(hidden_dim, 1)  # Линейный слой для вычисления весов внимания
+
+    def forward(self, x: Tensor) -> Tensor:
+        # x: (batch_size, seq_len, hidden_dim)
+        #print('inp AttentionPooling',x.shape)
+        attention_weights = F.softmax(self.attention(x), dim=1)  # (batch_size, seq_len, 1)
+        #print('inp attention_weights',attention_weights.shape)
+        x = torch.sum(attention_weights * x, dim=1)  # Взвешенная сумма
+        #print('output attention_weights',x.shape)
+        return x
+    
 
 class Transformer(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, num_heads: int, num_layers: int, dropout: float = 0.1, device: torch.device | str ='cpu'):
         """
         Инициализация трансформера.
-
-        Этот класс реализует архитектуру трансформера, состоящую из слоев самовнимания и полносвязных слоев.
 
         Параметры:
         - input_dim (int): Размерность входных данных.
@@ -141,32 +154,28 @@ class Transformer(nn.Module):
         self.self_attention_layers = nn.ModuleList(
             [SelfAttention(embed_dim=hidden_dim, num_heads=num_heads, dropout=dropout, device=self.device) for _ in range(num_layers)]
         )
-        self.feed_forward = FeedForwardRegression(input_dim=hidden_dim, hidden_dim=hidden_dim, output_dim=output_dim, dropout=dropout, device=self.device)
-        self.layer_norms = nn.LayerNorm(hidden_dim, device=self.device)  # Нормализация после каждого слоя
+        self.feed_forward = FeedForwardRegression(input_dim=hidden_dim, hidden_dim=hidden_dim,output_dim = output_dim, dropout=dropout, device=self.device)
+        self.layer_norms = nn.ModuleList([nn.LayerNorm(hidden_dim, device=self.device) for _ in range(num_layers)])
+        self.dropout = nn.Dropout(dropout)
+        self.final_fc = nn.Linear(hidden_dim, output_dim, device=self.device)  # Финальный слой для регрессии
 
     def forward(self, x: Tensor) -> Tensor:
-        """
-        Прямой проход через трансформер.
+        # Проекция входных данных
+        x = self.input_projection(x)  # [batch_size, seq_len, input_dim] -> [batch_size, seq_len, hidden_dim]
 
-        Параметры:
-        - x (Tensor): Входные данные с размерностью (batch_size, seq_len, input_dim).
-
-        Возвращает:
-        - Tensor: Выходные данные с размерностью (batch_size, output_dim).
-        """
-        # Преобразуем входные данные
-        x = self.input_projection(x)  # (batch_size, seq_len, input_dim) -> (batch_size, seq_len, hidden_dim)
-
+        # Применяем слои самовнимания
         for i, attention_layer in enumerate(self.self_attention_layers):
-            x = attention_layer(x)  # Применяем механизм внимания
-            # x = self.layer_norms[i](x)  # Применяем нормализацию после слоя внимания
+            residual = x
+            x = attention_layer(x)  # [batch_size, seq_len, hidden_dim]
+            x = self.dropout(x)
+            #x = self.layer_norms[i](x + residual)
+
+        # Агрегируем информацию по временной оси (например, среднее значение)
+        x = x.mean(dim=1)  # [batch_size, seq_len, hidden_dim] -> [batch_size, hidden_dim]
 
         # Применяем полносвязный слой для регрессии
-        x = self.layer_norms(x)  # Применяем нормализацию после полносвязного слоя
-        x = self.feed_forward(x)
-
-        # Агрегируем выходные данные по временным шагам
-        x = x.mean(dim=1)  # Получаем среднее значение по временным шагам
+        x = self.feed_forward(x)  # [batch_size, hidden_dim] -> [batch_size, output_dim]
+        #x = self.final_fc(x)  # [batch_size, hidden_dim] -> [batch_size, output_dim]
 
         return x
     
@@ -209,7 +218,7 @@ class Trainer:
         }
     def create_scheduler(self):
         # Пример создания планировщика
-        return optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.1)
+        return optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.9)
 
     def train_epoch(self, X: torch.Tensor, y: torch.Tensor, batch_size: int) -> dict:
         dataset_size = X.shape[0]

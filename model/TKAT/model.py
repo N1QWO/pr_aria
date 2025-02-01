@@ -19,14 +19,14 @@ def create_model(X_train_seq, y_train_seq,device='cpu'):
     with tf.device(device):
         model = Sequential([
             InputLayer(input_shape=X_train_seq.shape[1:]),
-            TKAN(100, sub_kan_configs=[
+            TKAN(128, sub_kan_configs=[
                 {'spline_order': 3, 'grid_size': 10},
-                {'spline_order': 1, 'grid_size': 5},
+                {'spline_order': 10, 'grid_size': 5},
                 {'spline_order': 4, 'grid_size': 6}
             ], return_sequences=True, use_bias=True),
-            TKAN(100, sub_kan_configs=[1, 2, 3, 3, 4], return_sequences=True, use_bias=True),
-            TKAN(100, sub_kan_configs=['relu', 'relu', 'relu', 'relu', 'relu'], return_sequences=True, use_bias=True),
-            TKAN(100, sub_kan_configs=[None for _ in range(3)], return_sequences=False, use_bias=True),
+            # TKAN(128, sub_kan_configs=[1, 2, 3, 3, 4], return_sequences=True, use_bias=True),
+            # TKAN(128, sub_kan_configs=['relu', 'relu', 'relu', 'relu', 'relu'], return_sequences=True, use_bias=True),
+            #TKAN(128, sub_kan_configs=[None for _ in range(3)], return_sequences=False, use_bias=True),
             Dense(y_train_seq.shape[1]),  # Выходной слой
         ])
     return model
