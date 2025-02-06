@@ -369,6 +369,141 @@
                 "target_window_size": 20
             },
             "epoch": 43
+        },
+        "d61c80f2-06c5-45ca-9316-0120085a9466": {
+            "result": {
+                "train_total_loss": 0.3013583256811055,
+                "train_main_loss": 0.3013583256811055,
+                "train_mape": 0.07810019843545057,
+                "train_alpha": 0.574745847489023,
+                "train_tube": 0.40981942407673383,
+                "test_total_loss": 0.26066169142723083,
+                "test_main_loss": 0.26066169142723083,
+                "test_mape": 0.06565684080123901,
+                "test_alpha": 0.5647989511489868,
+                "test_tube": 0.4681159555912018
+            },
+            "message": "тестовое обучение",
+            "params": {
+                "input_size": 9,
+                "output_size": 1,
+                "hidden_size": 512,
+                "output_sw": 20,
+                "num_layers": 1,
+                "num_bands": 5,
+                "temperature": 0.9,
+                "dropout": 0.1,
+                "dropout_band": 0.05,
+                "mn_c": [
+                    -4.0
+                ],
+                "mx_c": [
+                    4.0
+                ],
+                "c_mb": [
+                    1.0
+                ],
+                "c_bi": [
+                    0.5
+                ],
+                "lr": 0.001,
+                "batch_size": 32,
+                "window_size": 100,
+                "num_features": 9,
+                "downsample_step": 25,
+                "target_window_size": 20
+            },
+            "epoch": 81
+        },
+        "28d0757c-da8e-4a27-b8a3-161aaf196591": {
+            "result": {
+                "train_total_loss": NaN,
+                "train_main_loss": NaN,
+                "train_mape": NaN,
+                "train_alpha": NaN,
+                "train_tube": 0.5026898007404986,
+                "test_total_loss": NaN,
+                "test_main_loss": NaN,
+                "test_mape": NaN,
+                "test_alpha": NaN,
+                "test_tube": 0.6006924510002136
+            },
+            "message": "pretrain model дообучена на скользащих значениях для y1 y2 y3 выход n2 = (n1+y2)/2 n3=(n2+y3)/2",
+            "params": {
+                "input_size": 9,
+                "output_size": 1,
+                "hidden_size": 512,
+                "output_sw": 20,
+                "num_layers": 1,
+                "num_bands": 5,
+                "temperature": 0.85,
+                "dropout": 0.1,
+                "dropout_band": 0.05,
+                "mn_c": [
+                    -4.0
+                ],
+                "mx_c": [
+                    4.0
+                ],
+                "c_mb": [
+                    1.0
+                ],
+                "c_bi": [
+                    0.5
+                ],
+                "lr": 0.001,
+                "batch_size": 32,
+                "window_size": 100,
+                "num_features": 9,
+                "downsample_step": 25,
+                "target_window_size": 20
+            },
+            "epoch": 43
+        },
+        "2810213f-e14b-4dab-9af1-f6bdcfa0ab5f": {
+            "result": {
+                "train_total_loss": NaN,
+                "train_main_loss": NaN,
+                "train_mape": NaN,
+                "train_alpha": NaN,
+                "train_tube": 0.502126410376602,
+                "test_total_loss": NaN,
+                "test_main_loss": NaN,
+                "test_mape": NaN,
+                "test_alpha": NaN,
+                "test_tube": 0.5759742856025696
+            },
+            "message": "pretrain model дообучена на скользащих значениях для y1 y2 y3 выход n2 = (n1+y2)/2 n3=(n2+y3)/2, last",
+            "params": {
+                "input_size": 9,
+                "output_size": 1,
+                "hidden_size": 512,
+                "output_sw": 20,
+                "num_layers": 1,
+                "num_bands": 5,
+                "temperature": 0.85,
+                "dropout": 0.1,
+                "dropout_band": 0.05,
+                "mn_c": [
+                    -4.0
+                ],
+                "mx_c": [
+                    4.0
+                ],
+                "c_mb": [
+                    1.0
+                ],
+                "c_bi": [
+                    0.5
+                ],
+                "lr": 0.001,
+                "batch_size": 32,
+                "window_size": 100,
+                "num_features": 9,
+                "downsample_step": 25,
+                "target_window_size": 20
+            },
+            "epoch": 112
         }
     },
     "KAN": {
@@ -743,6 +878,30 @@
                 "batch_size": 64
             },
             "epoch": 40
+        }
+    },
+    "Transformer": {
+        "8b222df5-d0d5-4e58-9ad7-aa6b5cb6387c": {
+            "result": {
+                "train_main_loss": 1.3679190900965666e+16,
+                "train_mape": 346311.62904452434,
+                "train_tube": 0.0,
+                "test_main_loss": 17493217247232.0,
+                "test_mape": 21357.904296875,
+                "test_tube": 0.0
+            },
+            "message": "first",
+            "params": {
+                "input_dim": 9,
+                "hidden_dim": 256,
+                "output_dim": 1,
+                "num_heads": 16,
+                "num_layers": 1,
+                "lr": 0.0001,
+                "dropout": 0.05,
+                "batch_size": 64
+            },
+            "epoch": 1
         }
     }
 }

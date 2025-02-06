@@ -3,187 +3,332 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch import Tensor
+import math
 
 
+# class SelfAttention(nn.Module):
+#     def __init__(self, embed_dim: int, num_heads: int, dropout: float = 0.1, device: torch.device | str ='cpu'):
+#         """
+#         Инициализация слоя самовнимания (Self-Attention).
+
+#         Этот слой реализует механизм самовнимания, который позволяет модели фокусироваться на различных частях входных данных.
+
+#         Параметры:
+#         - embed_dim (int): Размерность векторного представления (embedding dimension).
+#         - num_heads (int): Количество голов (heads) в механизме внимания.
+#         - dropout (float): Вероятность обнуления (dropout rate) для регуляризации (по умолчанию 0.1).
+#         - device (torch.device | str): Устройство для размещения тензоров (CPU или GPU, по умолчанию 'cpu').
+
+#         Исключения:
+#         - ValueError: Если размерность векторного представления не делится на количество голов.
+#         """
+#         super(SelfAttention, self).__init__()
+#         self.device = device
+#         self.embed_dim = embed_dim
+#         self.num_heads = num_heads
+#         self.head_dim = embed_dim // num_heads
+#         self.dropout = nn.Dropout(dropout)
+
+#         if embed_dim % num_heads != 0:
+#             raise ValueError("Embedding dimension must be divisible by number of heads")
+
+#         self.query = nn.Linear(embed_dim, embed_dim, device=self.device)
+#         self.key = nn.Linear(embed_dim, embed_dim, device=self.device)
+#         self.value = nn.Linear(embed_dim, embed_dim, device=self.device)
+#         self.fc_out = nn.Linear(embed_dim, embed_dim, device=self.device)
+
+#         # Инициализация весов нормальным распределением
+#         self._initialize_weights()
+
+#     def _initialize_weights(self):
+#         """
+#         Инициализация весов слоев нормальным распределением.
+#         """
+#         for layer in [self.query, self.key, self.value, self.fc_out]:
+#             nn.init.normal_(layer.weight, mean=0.0, std=10)
+#             if layer.bias is not None:
+#                 nn.init.constant_(layer.bias, 0)
+
+#     def forward(self, x: Tensor) -> Tensor:
+#         """
+#         Прямой проход через слой самовнимания.
+
+#         Параметры:
+#         - x (Tensor): Входные данные с размерностью (batch_size, seq_len, embed_dim).
+
+#         Возвращает:
+#         - Tensor: Выходные данные с размерностью (batch_size, seq_len, embed_dim).
+#         """
+#         batch_size, seq_len, embed_dim = x.shape
+
+#         Q = self.query(x)
+#         K = self.key(x)
+#         V = self.value(x)
+
+#         Q = Q.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+#         K = K.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+#         V = V.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
+
+#         energy = torch.einsum("bhqd,bhkd->bhqk", Q, K)
+#         scaling_factor = self.head_dim ** 0.5
+#         attention = F.softmax(energy / scaling_factor, dim=-1)
+
+#         out = torch.einsum("bhqk,bhvd->bhqd", attention, V)
+#         out = out.transpose(1, 2).contiguous().view(batch_size, seq_len, embed_dim)
+
+#         out = self.fc_out(out)
+#         #out = self.dropout(out)  # Применяем Dropout
+
+#         return out
+
+# class FeedForwardRegression(nn.Module):
+#     def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, dropout: float = 0.1, device: torch.device | str ='cpu'):
+#         """
+#         Инициализация полносвязного слоя для регрессии.
+
+#         Этот слой состоит из двух полносвязных слоев с активацией ReLU и регуляризацией Dropout.
+
+#         Параметры:
+#         - input_dim (int): Размерность входных данных.
+#         - hidden_dim (int): Размерность скрытого слоя.
+#         - output_dim (int): Размерность выходных данных.
+#         - dropout (float): Вероятность обнуления (dropout rate) для регуляризации (по умолчанию 0.1).
+#         - device (torch.device | str): Устройство для размещения тензоров (CPU или GPU, по умолчанию 'cpu').
+#         """
+#         super(FeedForwardRegression, self).__init__()
+#         self.device = device
+#         self.dropout = nn.Dropout(dropout)
+#         self.fc1 = nn.Linear(input_dim, hidden_dim, device=self.device)
+#         self.fc2 = nn.Linear(hidden_dim, hidden_dim, device=self.device)
+#         self.fc3 = nn.Linear(hidden_dim, output_dim, device=self.device)
+
+#     def forward(self, x: Tensor) -> Tensor:
+#         """
+#         Прямой проход через полносвязный слой.
+
+#         Параметры:
+#         - x (Tensor): Входные данные с размерностью (batch_size, input_dim).
+
+#         Возвращает:
+#         - Tensor: Выходные данные с размерностью (batch_size, output_dim).
+#         """
+#         x = F.gelu(self.fc2(x))
+#         x = self.dropout(x)  # Применяем Dropout
+#         x = F.gelu(self.fc2(x))
+#         x = self.dropout(x)  # Применяем Dropout
+#         x = self.fc3(x)
+#         return x
+    
+# class AttentionPooling(nn.Module):
+#     def __init__(self, hidden_dim: int):
+#         super(AttentionPooling, self).__init__()
+#         self.attention = nn.Linear(hidden_dim, 1)  # Линейный слой для вычисления весов внимания
+
+#     def forward(self, x: Tensor) -> Tensor:
+#         # x: (batch_size, seq_len, hidden_dim)
+#         #print('inp AttentionPooling',x.shape)
+#         attention_weights = F.softmax(self.attention(x), dim=1)  # (batch_size, seq_len, 1)
+#         #print('inp attention_weights',attention_weights.shape)
+#         x = torch.sum(attention_weights * x, dim=1)  # Взвешенная сумма
+#         #print('output attention_weights',x.shape)
+#         return x
+    
+
+# class Transformer(nn.Module):
+#     def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, num_heads: int, num_layers: int, dropout: float = 0.1, device: torch.device | str ='cpu'):
+#         """
+#         Инициализация трансформера.
+
+#         Параметры:
+#         - input_dim (int): Размерность входных данных.
+#         - hidden_dim (int): Размерность скрытого слоя.
+#         - output_dim (int): Размерность выходных данных.
+#         - num_heads (int): Количество голов в механизме внимания.
+#         - num_layers (int): Количество слоев самовнимания.
+#         - dropout (float): Вероятность обнуления (dropout rate) для регуляризации (по умолчанию 0.1).
+#         - device (torch.device | str): Устройство для размещения тензоров (CPU или GPU, по умолчанию 'cpu').
+#         """
+#         super(Transformer, self).__init__()
+#         self.device = device
+#         self.input_projection = nn.Linear(input_dim, hidden_dim, device=self.device)
+#         self.self_attention_layers = nn.ModuleList(
+#             [SelfAttention(embed_dim=hidden_dim, num_heads=num_heads, dropout=dropout, device=self.device) for _ in range(num_layers)]
+#         )
+#         self.feed_forward = FeedForwardRegression(input_dim=hidden_dim, hidden_dim=hidden_dim,output_dim = output_dim, dropout=dropout, device=self.device)
+#         self.layer_norms = nn.ModuleList([nn.LayerNorm(hidden_dim, device=self.device) for _ in range(num_layers)])
+#         self.dropout = nn.Dropout(dropout)
+#         #self.fc = 
+#         self.final_fc = nn.Linear(hidden_dim, output_dim, device=self.device)  # Финальный слой для регрессии
+
+#     def forward(self, x: Tensor) -> Tensor:
+#         # Проекция входных данных
+#         x = self.input_projection(x)  # [batch_size, seq_len, input_dim] -> [batch_size, seq_len, hidden_dim]
+
+#         # Применяем слои самовнимания
+#         for i, attention_layer in enumerate(self.self_attention_layers):
+#             residual = x
+#             x = attention_layer(x)  # [batch_size, seq_len, hidden_dim]
+#             x = self.dropout(x)
+#             #x = self.layer_norms[i](x + residual)
+
+#         # Агрегируем информацию по временной оси (например, среднее значение)
+#         x = x.mean(dim=1)  # [batch_size, seq_len, hidden_dim] -> [batch_size, hidden_dim]
+
+#         # Применяем полносвязный слой для регрессии
+#         x = self.feed_forward(x)  # [batch_size, hidden_dim] -> [batch_size, output_dim]
+#         #x = self.final_fc(x)  # [batch_size, hidden_dim] -> [batch_size, output_dim]
+
+#         return x
+
+
+import torch
+import torch.nn as nn
+import math
 
 class SelfAttention(nn.Module):
-    def __init__(self, embed_dim: int, num_heads: int, dropout: float = 0.1, device: torch.device | str ='cpu'):
-        """
-        Инициализация слоя самовнимания (Self-Attention).
-
-        Этот слой реализует механизм самовнимания, который позволяет модели фокусироваться на различных частях входных данных.
-
-        Параметры:
-        - embed_dim (int): Размерность векторного представления (embedding dimension).
-        - num_heads (int): Количество голов (heads) в механизме внимания.
-        - dropout (float): Вероятность обнуления (dropout rate) для регуляризации (по умолчанию 0.1).
-        - device (torch.device | str): Устройство для размещения тензоров (CPU или GPU, по умолчанию 'cpu').
-
-        Исключения:
-        - ValueError: Если размерность векторного представления не делится на количество голов.
-        """
+    def __init__(self, embed_dim: int, num_heads: int, dropout: float = 0.1, device: torch.device | str = 'cpu'):
         super(SelfAttention, self).__init__()
-        self.device = device
-        self.embed_dim = embed_dim
-        self.num_heads = num_heads
-        self.head_dim = embed_dim // num_heads
-        self.dropout = nn.Dropout(dropout)
+        self.multihead_attn = nn.MultiheadAttention(embed_dim, num_heads, dropout=dropout, batch_first=True, device=device)
 
-        if embed_dim % num_heads != 0:
-            raise ValueError("Embedding dimension must be divisible by number of heads")
-
-        self.query = nn.Linear(embed_dim, embed_dim, device=self.device)
-        self.key = nn.Linear(embed_dim, embed_dim, device=self.device)
-        self.value = nn.Linear(embed_dim, embed_dim, device=self.device)
-        self.fc_out = nn.Linear(embed_dim, embed_dim, device=self.device)
-
-        # Инициализация весов нормальным распределением
-        self._initialize_weights()
-
-    def _initialize_weights(self):
+    def forward(self, x: torch.Tensor, causal_mask: torch.Tensor = None, key_padding_mask: torch.Tensor = None) -> torch.Tensor:
         """
-        Инициализация весов слоев нормальным распределением.
-        """
-        for layer in [self.query, self.key, self.value, self.fc_out]:
-            nn.init.normal_(layer.weight, mean=0.0, std=10)
-            if layer.bias is not None:
-                nn.init.constant_(layer.bias, 0)
-
-    def forward(self, x: Tensor) -> Tensor:
-        """
-        Прямой проход через слой самовнимания.
-
+        Применение механизма самовнимания.
+        
         Параметры:
-        - x (Tensor): Входные данные с размерностью (batch_size, seq_len, embed_dim).
-
+        - x (Tensor): Входной тензор размерности [batch_size, seq_len, hidden_dim].
+        - causal_mask (Tensor): Маска причинности размерности [seq_len, seq_len].
+        - key_padding_mask (Tensor): Маска паддинга размерности [batch_size, seq_len].
+        
         Возвращает:
-        - Tensor: Выходные данные с размерностью (batch_size, seq_len, embed_dim).
+        - Tensor: Результат применения механизма внимания [batch_size, seq_len, hidden_dim].
         """
-        batch_size, seq_len, embed_dim = x.shape
-
-        Q = self.query(x)
-        K = self.key(x)
-        V = self.value(x)
-
-        Q = Q.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
-        K = K.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
-        V = V.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
-
-        energy = torch.einsum("bhqd,bhkd->bhqk", Q, K)
-        scaling_factor = self.head_dim ** 0.5
-        attention = F.softmax(energy / scaling_factor, dim=-1)
-
-        out = torch.einsum("bhqk,bhvd->bhqd", attention, V)
-        out = out.transpose(1, 2).contiguous().view(batch_size, seq_len, embed_dim)
-
-        out = self.fc_out(out)
-        #out = self.dropout(out)  # Применяем Dropout
-
-        return out
+        x, _ = self.multihead_attn(x, x, x, attn_mask=causal_mask, key_padding_mask=key_padding_mask)
+        return x
 
 class FeedForwardRegression(nn.Module):
-    def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, dropout: float = 0.1, device: torch.device | str ='cpu'):
-        """
-        Инициализация полносвязного слоя для регрессии.
-
-        Этот слой состоит из двух полносвязных слоев с активацией ReLU и регуляризацией Dropout.
-
-        Параметры:
-        - input_dim (int): Размерность входных данных.
-        - hidden_dim (int): Размерность скрытого слоя.
-        - output_dim (int): Размерность выходных данных.
-        - dropout (float): Вероятность обнуления (dropout rate) для регуляризации (по умолчанию 0.1).
-        - device (torch.device | str): Устройство для размещения тензоров (CPU или GPU, по умолчанию 'cpu').
-        """
+    def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, dropout: float = 0.1, device: torch.device | str = 'cpu'):
         super(FeedForwardRegression, self).__init__()
-        self.device = device
+        self.fc1 = nn.Linear(input_dim, hidden_dim, device=device)
+        self.fc2 = nn.Linear(hidden_dim, output_dim, device=device)
         self.dropout = nn.Dropout(dropout)
-        self.fc1 = nn.Linear(input_dim, hidden_dim, device=self.device)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim, device=self.device)
-        self.fc3 = nn.Linear(hidden_dim, output_dim, device=self.device)
+        self.relu = nn.ReLU()
 
-    def forward(self, x: Tensor) -> Tensor:
-        """
-        Прямой проход через полносвязный слой.
-
-        Параметры:
-        - x (Tensor): Входные данные с размерностью (batch_size, input_dim).
-
-        Возвращает:
-        - Tensor: Выходные данные с размерностью (batch_size, output_dim).
-        """
-        x = F.gelu(self.fc2(x))
-        x = self.dropout(x)  # Применяем Dropout
-        x = F.gelu(self.fc2(x))
-        x = self.dropout(x)  # Применяем Dropout
-        x = self.fc3(x)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.fc1(x)
+        x = self.relu(x)
+        x = self.dropout(x)
+        x = self.fc2(x)
         return x
-    
-class AttentionPooling(nn.Module):
-    def __init__(self, hidden_dim: int):
-        super(AttentionPooling, self).__init__()
-        self.attention = nn.Linear(hidden_dim, 1)  # Линейный слой для вычисления весов внимания
 
-    def forward(self, x: Tensor) -> Tensor:
-        # x: (batch_size, seq_len, hidden_dim)
-        #print('inp AttentionPooling',x.shape)
-        attention_weights = F.softmax(self.attention(x), dim=1)  # (batch_size, seq_len, 1)
-        #print('inp attention_weights',attention_weights.shape)
-        x = torch.sum(attention_weights * x, dim=1)  # Взвешенная сумма
-        #print('output attention_weights',x.shape)
-        return x
+def generate_causal_mask(seq_len: int, device: torch.device) -> torch.Tensor:
+    """
+    Генерация маски причинности для механизма внимания.
     
+    Параметры:
+    - seq_len (int): Длина последовательности.
+    - device (torch.device): Устройство для размещения тензора.
+    
+    Возвращает:
+    - Tensor: Маска размерности [seq_len, seq_len].
+    """
+    mask = torch.triu(torch.full((seq_len, seq_len), float('-inf'), device=device), diagonal=1)
+    return mask
 
-class Transformer(nn.Module):
-    def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, num_heads: int, num_layers: int, dropout: float = 0.1, device: torch.device | str ='cpu'):
+class TransformerFuturePrediction(nn.Module):
+    def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, num_heads: int, num_layers: int, 
+                 predict_steps: int, dropout: float = 0.1, max_seq_len: int = 512, device: torch.device | str = 'cpu'):
         """
-        Инициализация трансформера.
-
+        Инициализация трансформера для предсказания будущих шагов.
+        
         Параметры:
         - input_dim (int): Размерность входных данных.
         - hidden_dim (int): Размерность скрытого слоя.
-        - output_dim (int): Размерность выходных данных.
+        - output_dim (int): Размерность выходных данных (обычно 1 для регрессии).
         - num_heads (int): Количество голов в механизме внимания.
         - num_layers (int): Количество слоев самовнимания.
+        - predict_steps (int): Количество шагов вперед для предсказания.
         - dropout (float): Вероятность обнуления (dropout rate) для регуляризации (по умолчанию 0.1).
+        - max_seq_len (int): Максимальная длина последовательности для позиционных энкодингов.
         - device (torch.device | str): Устройство для размещения тензоров (CPU или GPU, по умолчанию 'cpu').
         """
-        super(Transformer, self).__init__()
+        super(TransformerFuturePrediction, self).__init__()
         self.device = device
+        self.predict_steps = predict_steps
         self.input_projection = nn.Linear(input_dim, hidden_dim, device=self.device)
+        self.positional_encoding = self.generate_positional_encoding(hidden_dim, max_seq_len).to(device)
         self.self_attention_layers = nn.ModuleList(
             [SelfAttention(embed_dim=hidden_dim, num_heads=num_heads, dropout=dropout, device=self.device) for _ in range(num_layers)]
         )
-        self.feed_forward = FeedForwardRegression(input_dim=hidden_dim, hidden_dim=hidden_dim,output_dim = output_dim, dropout=dropout, device=self.device)
         self.layer_norms = nn.ModuleList([nn.LayerNorm(hidden_dim, device=self.device) for _ in range(num_layers)])
         self.dropout = nn.Dropout(dropout)
-        self.final_fc = nn.Linear(hidden_dim, output_dim, device=self.device)  # Финальный слой для регрессии
+        self.output_layer = nn.Linear(hidden_dim, predict_steps * output_dim, device=self.device)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def generate_positional_encoding(self, hidden_dim: int, max_seq_len: int) -> torch.Tensor:
+        """
+        Генерация позиционных энкодингов.
+        
+        Параметры:
+        - hidden_dim (int): Размерность скрытого слоя.
+        - max_seq_len (int): Максимальная длина последовательности.
+        
+        Возвращает:
+        - Tensor: Тензор позиционных энкодингов размерности [max_seq_len, hidden_dim].
+        """
+        positional_encoding = torch.zeros(max_seq_len, hidden_dim)
+        position = torch.arange(0, max_seq_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, hidden_dim, 2).float() * (-math.log(10000.0) / hidden_dim))
+        positional_encoding[:, 0::2] = torch.sin(position * div_term)
+        positional_encoding[:, 1::2] = torch.cos(position * div_term)
+        return positional_encoding.unsqueeze(0)
+
+    def forward(self, x: torch.Tensor, key_padding_mask: torch.Tensor = None) -> torch.Tensor:
+        """
+        Forward-проход модели.
+        
+        Параметры:
+        - x (Tensor): Входной тензор размерности [batch_size, seq_len, input_dim].
+        - key_padding_mask (Tensor): Маска паддинга размерности [batch_size, seq_len].
+        
+        Возвращает:
+        - Tensor: Предсказания для следующих `predict_steps` шагов [batch_size, predict_steps, output_dim].
+        """
         # Проекция входных данных
         x = self.input_projection(x)  # [batch_size, seq_len, input_dim] -> [batch_size, seq_len, hidden_dim]
 
-        # Применяем слои самовнимания
+        # Добавление позиционных энкодингов
+        seq_len = x.size(1)
+        x = x + self.positional_encoding[:, :seq_len, :]  # [batch_size, seq_len, hidden_dim]
+
+        # Генерация маски причинности
+        causal_mask = generate_causal_mask(seq_len, self.device)
+
+        # Применяем слои самовнимания с маской причинности и маской паддинга
         for i, attention_layer in enumerate(self.self_attention_layers):
             residual = x
-            x = attention_layer(x)  # [batch_size, seq_len, hidden_dim]
+            x = attention_layer(x, causal_mask=causal_mask, key_padding_mask=key_padding_mask)  # [batch_size, seq_len, hidden_dim]
             x = self.dropout(x)
-            #x = self.layer_norms[i](x + residual)
+            x = self.layer_norms[i](x + residual)
 
-        # Агрегируем информацию по временной оси (например, среднее значение)
-        x = x.mean(dim=1)  # [batch_size, seq_len, hidden_dim] -> [batch_size, hidden_dim]
+        # Агрегация по всей последовательности (mean-pooling)
+        if key_padding_mask is not None:
+            # Исключаем паддинговые токены при агрегации
+            mask = ~key_padding_mask.unsqueeze(-1)  # [batch_size, seq_len, 1]
+            x = (x * mask).sum(dim=1) / mask.sum(dim=1)  # [batch_size, hidden_dim]
+        else:
+            x = x.mean(dim=1)  # [batch_size, hidden_dim]
 
-        # Применяем полносвязный слой для регрессии
-        x = self.feed_forward(x)  # [batch_size, hidden_dim] -> [batch_size, output_dim]
-        #x = self.final_fc(x)  # [batch_size, hidden_dim] -> [batch_size, output_dim]
+        # Применяем полносвязный слой для предсказания следующих шагов
+        predictions = self.output_layer(x)  # [batch_size, predict_steps * output_dim]
 
-        return x
-    
+        # Преобразуем форму для получения [batch_size, predict_steps, output_dim]
+        predictions = predictions.view(-1, self.predict_steps, predictions.size(-1) // self.predict_steps)
+
+        return predictions
 
 class AdaptiveLoss(nn.Module):
     def __init__(self, delta: float = 0.01):
         super(AdaptiveLoss, self).__init__()
-        self.loss = nn.HuberLoss(delta=delta)
+        self.loss = nn.MSELoss()
         self.loss_tube = None
         #self.mse = nn.MSELoss()
         
@@ -218,7 +363,7 @@ class Trainer:
         }
     def create_scheduler(self):
         # Пример создания планировщика
-        return optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.9)
+        return optim.lr_scheduler.StepLR(self.optimizer, step_size=500, gamma=0.5)
 
     def train_epoch(self, X: torch.Tensor, y: torch.Tensor, batch_size: int) -> dict:
         dataset_size = X.shape[0]
@@ -229,6 +374,7 @@ class Trainer:
         epoch_metrics = {
             'main_loss': 0.0,
             'mape': 0.0,
+            'tube':0.0
         }
         n_batches = 0
         
@@ -292,17 +438,19 @@ class Trainer:
             test_metrics = self.evaluate(X_t, y_t, loss_tube)
             self.add_history(train_metrics,test_metrics)
 
-            if (test_metrics['tube'].item() +  train_metrics['mape'])/2 < best_test_mape:
-                best_test_mape = (test_metrics['tube'].item() +  train_metrics['mape'])/2
+            if (test_metrics['tube'].item() +  train_metrics['tube'])/2 < best_test_mape:
+                best_test_mape = (test_metrics['tube'].item() +  train_metrics['tube'])/2
                 best_model_weights = self.model.state_dict().copy()
             
             # Вывод прогресса
             if (epoch + 1) % self.inf_per_epoch == 0 or epoch == 9:
                 print(
                     f'Epoch {epoch + 1}\n'
-                    f'Main: {train_metrics["main_loss"]:.6f}, '
-                    f'MAPE: {train_metrics["mape"]:.6f}\n'
-                    f'Test - MAPE: {test_metrics["mape"]:.6f}, '
+                    f'Train - Main: {train_metrics["main_loss"]:.6f}, '
+                    f'MAPE: {train_metrics["mape"]:.6f} '
+                    f'Tube: {train_metrics["tube"]:.6f}\n'
+                    f'Test - Main: {test_metrics["main_loss"]:.6f}, '
+                    f'MAPE: {test_metrics["mape"]:.6f}, '
                     f'Tube: {test_metrics["tube"]:.6f}'
                 )
         torch.save(best_model_weights, 'best_model_weights.pth')

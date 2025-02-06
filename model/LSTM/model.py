@@ -158,7 +158,7 @@ class RNNTrainer:
         self.device = device
         self.criterion = RnnAdaptiveLoss()  # Используем MSELoss + Hyber 
         self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
-        self.inf_per_epoch = 100
+        self.inf_per_epoch = inf_per_epoch
         self.history = {
             'train_main_loss': [],
             'train_mape': [],
@@ -253,8 +253,10 @@ class RNNTrainer:
                 print(
                     f'Epoch {epoch + 1}\n'
                     f'Main: {train_metrics["main_loss"]:.6f}, '
-                    f'MAPE: {train_metrics["mape"]:.6f}\n'
-                    f'Test - MAPE: {test_metrics["mape"]:.6f}, '
+                    f'MAPE: {train_metrics["mape"]:.6f}, '
+                    f'Tube: {train_metrics["tube"]:.6f}\n'
+                    f'Test - Main: {test_metrics["main_loss"]:.6f}, '
+                    f'MAPE: {test_metrics["mape"]:.6f} '
                     f'Tube: {test_metrics["tube"]:.6f}'
                 )
         torch.save(best_model_weights, 'best_model_weights.pth')

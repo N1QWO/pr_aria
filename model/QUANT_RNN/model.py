@@ -305,8 +305,15 @@ class RNN_quantum(nn.Module):
                 for i, layer in enumerate(self.layers_follow):
                     h[i] = layer(None, h[i])
                 output[:,t - l] = self.fc(h[-1]).squeeze()
+        wind = 2
 
-        return output
+        prev_y = x[:,-wind:,-1]
+        cant = torch.cat([prev_y,output],dim=1)
+
+        for i in range(cant.shape[1]-wind):
+            cant[:,i+wind] = cant[:,i:(i+wind+1)%cant.shape[1]].mean(dim=1)
+
+        return cant[:,wind:]
     def to(self, device: torch.device):
         super().to(device)
         self.device = device
@@ -324,15 +331,15 @@ class RnnAdaptiveLoss(nn.Module):
         main_loss = self.huber(pred, target)
         
         # MAPE для мониторинга
-        mape = torch.abs(target - pred) / torch.clamp(target, min=1e-7)
-        
+        mape = torch.abs(target - pred) / torch.clamp(target, min=1e-7)   
         
         # Адаптивное взвешивание
         alpha = torch.sigmoid(main_loss.detach())  # alpha будет скалярным значением
         
 
         # Общая функция потерь
-        total_loss = main_loss + alpha.mean() * main_loss  # Пример использования alpha для взвешивания
+        #total_loss = main_loss + alpha.mean() * main_loss  # Пример использования alpha для взвешивания
+        total_loss = main_loss # Пример использования alpha для взвешивания
         per_loss_rd = (mape < 0.01 * self.loss_tube).sum() / (mape.numel())
         
         return {
@@ -366,7 +373,7 @@ class RNNTrainer:
 
     def create_scheduler(self):
         # Пример создания планировщика
-        return optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.25,last_epoch = 70)
+        return optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.25)
     
     def add_history(self, train_metrics: dict, test_metrics: dict):
         for key in train_metrics:
@@ -399,7 +406,6 @@ class RNNTrainer:
             #print(predictions.shape)
             metrics = self.criterion(predictions, y_batch)
             metrics['total_loss'].backward()
-            
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
             self.optimizer.step()
             
@@ -447,8 +453,8 @@ class RNNTrainer:
             test_metrics = self.evaluate(X_t, y_t, loss_tube)
             self.add_history(train_metrics,test_metrics)
 
-            if (test_metrics['tube'].item() +  train_metrics['mape'])/2 < best_test_mape:
-                best_test_mape = (test_metrics['tube'].item() +  train_metrics['mape'])/2
+            if (test_metrics['tube'].item() +  train_metrics['tube'])/2 < best_test_mape:
+                best_test_mape = (test_metrics['tube'].item() +  train_metrics['tube'])/2
                 best_model_weights = self.model.state_dict().copy()
             if weight_i:
                 self.weights_history.append([param.data.numpy().copy() for param in self.model.parameters()])
@@ -482,3 +488,12 @@ class RNNTrainer:
                 )
         torch.save(best_model_weights, 'best_model_weights.pth')
         return self.history
+
+
+if __name__=='__main__':
+    a = torch.rand((2,3))
+    r = torch.rand((2,11))
+
+    rt = torch.cat([a,r],dim = 1)
+    t = rt.unfold(1,4,1).mean(dim=2)
+    print(t)
