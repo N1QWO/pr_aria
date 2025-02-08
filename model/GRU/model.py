@@ -26,7 +26,22 @@ class GRUCell(nn.Module):
         # Обновленное состояние
         h_t = (1 - z_t) * h_prev + z_t * h_tilde
         return h_t
+    
+class FeedForwardRegression(nn.Module):
+    def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, dropout: float = 0.1, device: torch.device | str = 'cpu'):
+        super(FeedForwardRegression, self).__init__()
+        self.fc1 = nn.Linear(input_dim, hidden_dim, device=device)
+        self.fc2 = nn.Linear(hidden_dim, output_dim, device=device)
+        self.dropout = nn.Dropout(dropout)
+        self.relu = nn.ReLU()
 
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.fc1(x)
+        x = self.relu(x)
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return x
+    
 class GRU(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers=1, device: torch.device | str ='cpu'):
         super(GRU, self).__init__()
@@ -46,15 +61,15 @@ class GRU(nn.Module):
         return h  # Возвращаем последнее скрытое состояние
 
 class GRURegressor(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, num_layers=1, device: torch.device | str ='cpu'):
+    def __init__(self, input_size, hidden_size, output_size, num_layers=1,dropout: float = 0.1, device: torch.device | str ='cpu'):
         super(GRURegressor, self).__init__()
         self.device = device
         self.gru = GRU(input_size, hidden_size, num_layers, device=self.device)
-        self.fc = nn.Linear(hidden_size, output_size, device=self.device)  # Полносвязный слой для регрессии
+        self.ff = FeedForwardRegression(hidden_size,hidden_size,output_size,dropou=dropout,device=self.device)  # Полносвязный слой для регрессии
 
     def forward(self, x):
         h = self.gru(x)  # Получаем последнее скрытое состояние
-        out = self.fc(h)  # Применяем полносвязный слой
+        out = self.ff(h)  # Применяем полносвязный слой
         return out
 
 class RnnAdaptiveLoss(nn.Module):

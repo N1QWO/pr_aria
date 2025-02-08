@@ -504,6 +504,96 @@
                 "target_window_size": 20
             },
             "epoch": 112
+        },
+        "a2763491-f1a3-4377-be37-f46d71b01601": {
+            "result": {
+                "train_total_loss": 0.2889233151365658,
+                "train_main_loss": 0.2889233151365658,
+                "train_mape": 0.07484994745496566,
+                "train_alpha": 0.5717113735106996,
+                "train_tube": 0.41182992648957345,
+                "test_total_loss": 0.228706955909729,
+                "test_main_loss": 0.228706955909729,
+                "test_mape": 0.05599166825413704,
+                "test_alpha": 0.556928813457489,
+                "test_tube": 0.5582770109176636
+            },
+            "message": "pretrain model дообучена новая попытка после первых 43 эпох, best",
+            "params": {
+                "input_size": 9,
+                "output_size": 1,
+                "hidden_size": 512,
+                "output_sw": 20,
+                "num_layers": 1,
+                "num_bands": 5,
+                "temperature": 0.9,
+                "dropout": 0.1,
+                "dropout_band": 0.05,
+                "mn_c": [
+                    -4.0
+                ],
+                "mx_c": [
+                    4.0
+                ],
+                "c_mb": [
+                    1.0
+                ],
+                "c_bi": [
+                    0.5
+                ],
+                "lr": 1e-05,
+                "batch_size": 32,
+                "window_size": 100,
+                "num_features": 9,
+                "downsample_step": 25,
+                "target_window_size": 20
+            },
+            "epoch": 49
+        },
+        "9904a17b-3098-43f6-8a74-44c3a7c70b92": {
+            "result": {
+                "train_total_loss": 0.2873056591464783,
+                "train_main_loss": 0.2873056591464783,
+                "train_mape": 0.07423681283587126,
+                "train_alpha": 0.5713109489019752,
+                "train_tube": 0.41504293891984195,
+                "test_total_loss": 0.2296675443649292,
+                "test_main_loss": 0.2296675443649292,
+                "test_mape": 0.05556962266564369,
+                "test_alpha": 0.557165801525116,
+                "test_tube": 0.57962965965271
+            },
+            "message": "pretrain model второй раз с применением CosineAnnealingWarmRestarts T_mult = 2 T_0 = 10 eta_min = 1e-10",
+            "params": {
+                "input_size": 9,
+                "output_size": 1,
+                "hidden_size": 512,
+                "output_sw": 20,
+                "num_layers": 1,
+                "num_bands": 5,
+                "temperature": 0.9,
+                "dropout": 0.1,
+                "dropout_band": 0.05,
+                "mn_c": [
+                    -4.0
+                ],
+                "mx_c": [
+                    4.0
+                ],
+                "c_mb": [
+                    1.0
+                ],
+                "c_bi": [
+                    0.5
+                ],
+                "lr": 1e-05,
+                "batch_size": 32,
+                "window_size": 100,
+                "num_features": 9,
+                "downsample_step": 25,
+                "target_window_size": 20
+            },
+            "epoch": 23
         }
     },
     "KAN": {

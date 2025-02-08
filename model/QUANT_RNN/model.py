@@ -305,19 +305,22 @@ class RNN_quantum(nn.Module):
                 for i, layer in enumerate(self.layers_follow):
                     h[i] = layer(None, h[i])
                 output[:,t - l] = self.fc(h[-1]).squeeze()
-        wind = 2
+        return output
+        # wind = 1
 
-        prev_y = x[:,-wind:,-1]
-        cant = torch.cat([prev_y,output],dim=1)
+        # prev_y = x[:,-wind:,-1]
+        # cant = torch.cat([prev_y,output],dim=1)
 
-        for i in range(cant.shape[1]-wind):
-            cant[:,i+wind] = cant[:,i:(i+wind+1)%cant.shape[1]].mean(dim=1)
+        # for i in range(cant.shape[1]-wind):
+        #     cant[:,i+wind] = cant[:,i:(i+wind+1)%cant.shape[1]].mean(dim=1)
 
-        return cant[:,wind:]
+        # return cant[:,wind:]
     def to(self, device: torch.device):
         super().to(device)
         self.device = device
         return self
+
+
 class RnnAdaptiveLoss(nn.Module):
     def __init__(self, delta=0.01):
         super(RnnAdaptiveLoss, self).__init__()
@@ -369,11 +372,33 @@ class RNNTrainer:
             'test_tube': []
         }
         self.weights_history = []
-
-
     def create_scheduler(self):
-        # Пример создания планировщика
-        return optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.25)
+        """
+        Создание планировщика скорости обучения типа CosineAnnealingWarmRestarts.
+        
+        Параметры:
+        - T_0: Первый цикл перезапуска (число эпох).
+        - T_mult: Множитель для увеличения длительности каждого последующего цикла.
+        - eta_min: Минимальное значение скорости обучения.
+        
+        Возвращает:
+        - Сконфигурированный планировщик.
+        """
+        # Конфигурация планировщика
+        T_0 = 10  # Длина первого цикла (в эпохах)
+        T_mult = 2  # Множитель для увеличения длины каждого следующего цикла
+        eta_min = 1e-10  # Минимальная скорость обучения
+        
+        return torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            optimizer=self.optimizer,
+            T_0=T_0,
+            T_mult=T_mult,
+            eta_min=eta_min
+        )
+
+    # def create_scheduler(self):
+    #     # Пример создания планировщика
+    #     return optim.lr_scheduler.StepLR(self.optimizer, step_size=20, gamma=0.5)
     
     def add_history(self, train_metrics: dict, test_metrics: dict):
         for key in train_metrics:
@@ -411,6 +436,7 @@ class RNNTrainer:
             
             for key in epoch_metrics:
                 epoch_metrics[key] += metrics[key].item()
+            
             n_batches += 1
             
         return {k: v / n_batches for k, v in epoch_metrics.items()}
@@ -473,7 +499,7 @@ class RNNTrainer:
             # Вывод прогресса
             if (epoch + 1) % self.inf_per_epoch == 0 or epoch == 9:
                 print(
-                    f'Epoch {epoch + 1}\n'
+                    f'Epoch {epoch + 1} || lr {self.optimizer.param_groups[0]["lr"]:.10f} || \n'
                     f'Train - Total: {train_metrics["total_loss"]:.6f}, '
                     f'Main: {train_metrics["main_loss"]:.6f}, '
                     #f'Quantum: {train_metrics["quantum_loss"]:.6f}, '
