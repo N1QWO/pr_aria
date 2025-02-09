@@ -61,11 +61,11 @@ class GRU(nn.Module):
         return h  # Возвращаем последнее скрытое состояние
 
 class GRURegressor(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, num_layers=1,dropout: float = 0.1, device: torch.device | str ='cpu'):
+    def __init__(self, input_size, hidden_size,feed_forward_hid, output_size, num_layers=1,dropout: float = 0.1, device: torch.device | str ='cpu'):
         super(GRURegressor, self).__init__()
         self.device = device
         self.gru = GRU(input_size, hidden_size, num_layers, device=self.device)
-        self.ff = FeedForwardRegression(hidden_size,hidden_size,output_size,dropou=dropout,device=self.device)  # Полносвязный слой для регрессии
+        self.ff = FeedForwardRegression(input_dim = hidden_size,hidden_dim = feed_forward_hid,output_dim = output_size,dropout=dropout,device=self.device)  # Полносвязный слой для регрессии
 
     def forward(self, x):
         h = self.gru(x)  # Получаем последнее скрытое состояние
@@ -99,7 +99,7 @@ class RNNTrainer:
         self.device = device
         self.criterion = RnnAdaptiveLoss()  # Используем MSELoss + Hyber 
         self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
-        self.inf_per_epoch = 100
+        self.inf_per_epoch = inf_per_epoch
         self.history = {
             'train_main_loss': [],
             'train_mape': [],

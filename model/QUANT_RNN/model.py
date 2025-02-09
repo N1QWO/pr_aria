@@ -246,7 +246,7 @@ class RNN_quantum(nn.Module):
         self.num_layers = num_layers
         self.output_size = output_size
         self.output_s_w = output_sw
-
+        self.input_size = input_size
         self.layers = nn.ModuleList([RNN_QuantumNeuralNetwork(input_size = input_size, 
                                                               hidden_size = hidden_size,
                                                               output_size = hidden_size,
