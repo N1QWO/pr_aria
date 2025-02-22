@@ -594,6 +594,51 @@
                 "target_window_size": 20
             },
             "epoch": 23
+        },
+        "0c9d09b8-58dc-4745-93c7-26dff372f7da": {
+            "result": {
+                "train_total_loss": 0.231198566227999,
+                "train_main_loss": 0.231198566227999,
+                "train_mape": 0.057888616193752275,
+                "train_alpha": 0.5575315034369187,
+                "train_tube": 0.5312112233200106,
+                "test_total_loss": 0.2080736607313156,
+                "test_main_loss": 0.2080736607313156,
+                "test_mape": 0.0501653216779232,
+                "test_alpha": 0.5518315434455872,
+                "test_tube": 0.6080998778343201
+            },
+            "message": "data prep on stratisfy in all data whit max len value of bin of all bins",
+            "params": {
+                "input_size": 9,
+                "output_size": 1,
+                "hidden_size": 512,
+                "output_sw": 20,
+                "num_layers": 1,
+                "num_bands": 5,
+                "temperature": 0.9,
+                "dropout": 0.1,
+                "dropout_band": 0.05,
+                "mn_c": [
+                    -4.0
+                ],
+                "mx_c": [
+                    4.0
+                ],
+                "c_mb": [
+                    1.0
+                ],
+                "c_bi": [
+                    0.5
+                ],
+                "lr": 0.001,
+                "batch_size": 32,
+                "window_size": 100,
+                "num_features": 9,
+                "downsample_step": 25,
+                "target_window_size": 20
+            },
+            "epoch": 42
         }
     },
     "KAN": {

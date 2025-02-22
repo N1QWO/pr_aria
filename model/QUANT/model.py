@@ -284,7 +284,9 @@ class AdaptiveLoss(nn.Module):
         alpha = torch.sigmoid(main_loss.detach())
         
         # Общая функция потерь
-        total_loss = main_loss + self.quantum_weight * alpha * quantum_loss
+        #total_loss = main_loss + self.quantum_weight * alpha * quantum_loss
+        # Общая функция потерь
+        total_loss = main_loss 
         
         return {
             'total_loss': total_loss,
@@ -359,7 +361,7 @@ class QuantumTrainer:
         """
         self.model.eval()  # Перевод модели в режим оценки
         with torch.no_grad():
-            y_pred = self.model(X)  # Получение предсказаний
+            y_pred= self.model(X)  # Получение предсказаний
             dummy_states = [torch.zeros_like(y_pred).unsqueeze(0)]  # Создание фиктивных квантовых состояний
             metrics = self.criterion(y_pred, y, dummy_states)  # Вычисление метрик
             
@@ -422,7 +424,7 @@ class QuantumTrainer:
             
         return {k: v / n_batches for k, v in epoch_metrics.items()}  # Возврат средних метрик за эпоху
 
-    def fit(self, X: torch.Tensor, y: torch.Tensor, X_t: torch.Tensor, y_t: torch.Tensor, batch_size: int, epochs: int, loss_tube: float = 5) -> dict:
+    def fit(self, X: torch.Tensor, y: torch.Tensor, X_t: torch.Tensor, y_t: torch.Tensor, batch_size: int, epochs: int, loss_tube: float = 5,save_w:bool = True) -> dict:
         """
         Обучение модели на заданное количество эпох.
 
@@ -478,7 +480,8 @@ class QuantumTrainer:
                     f'Test - MAPE: {test_metrics["mape"]:.6f}, '
                     f'Tube: {test_metrics["tube"]:.6f}'
                 )
-        torch.save(best_model_weights, 'best_model_weights.pth')
+        if save_w:
+            torch.save(best_model_weights, 'best_model_weights.pth')
 
         return self.history  # Возврат истории метрик
     
@@ -508,25 +511,29 @@ history = trainer.fit(
 
 
 if __name__=='__main__':
-
         # Создаем данные
-    train_dataset = None
-    test_dataset = None 
-
-    # Создаем даталоадеры
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=32)
-    X_train, y_train = train_dataset.X, train_dataset.y
-    X_test, y_test = test_dataset.X, test_dataset.y
-
+    from sklearn.model_selection import train_test_split
+    import matplotlib.pyplot as plt
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    #device = 'cpu'
+
+    X = torch.absolute(torch.rand((1000,1),device = device)*10 )
+    y = torch.sum(10*torch.sin(X) + torch.sqrt(X) + 10*X**1/3 , dim=-1).reshape(-1,1) 
+
+    plt.scatter(X[:,0].cpu().detach().numpy(),y[:,0].cpu().detach().numpy())
+    plt.show()
+
+    print("X",X.shape)
+    print("y",y.shape)
+    X_train, X_test, y_train, y_test  = train_test_split(X,y,test_size=0.33,random_state=42)
+
 
     in_,out_ = X_train.shape[1],y_train.shape[1]
     model = QuantumNeuralNetwork(
         input_size=in_,
-        hidden_size=8,
+        hidden_size=16,
         output_size = out_,
-        num_bands=1,
+        num_bands=3,
         device=device
     )
     
@@ -543,5 +550,12 @@ if __name__=='__main__':
         y_t=y_test,
         batch_size=32,
         epochs=700,
-        loss_tube=5
+        loss_tube=5,
+        save_w = False
     )
+    with torch.no_grad():
+        y_pred,q = model(X_test)
+
+    plt.scatter(X_test[:,0].cpu().detach().numpy(),y_test[:,0].cpu().detach().numpy(),color='blue', alpha=1,s=0.15)
+    plt.scatter(X_test[:,0].cpu().detach().numpy(),y_pred[:,0].cpu().detach().numpy(),color='red', alpha=0.7,s=1)
+    plt.show()

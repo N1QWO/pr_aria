@@ -4,7 +4,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from typing import Tuple, Union
 import matplotlib as plt
-   
+import torch
 class QuantumBandLayer(nn.Module):
     """
     Класс квантового слоя.
@@ -185,7 +185,7 @@ class RNN_QuantumNeuralNetwork(nn.Module):
         self.dropout1 = nn.Dropout(dropout)
         # Выходной слой
         self.output_layer = nn.Linear(hidden_size, output_size).to(device)
-        self.h_s = nn.Linear(hidden_size, hidden_size).to(device)
+        #self.h_s = nn.Linear(hidden_size, hidden_size).to(device)
 
     def forward(self, x = None,h_s = None):
         if x!=None:
@@ -214,9 +214,8 @@ class RNN_QuantumNeuralNetwork(nn.Module):
 
         # Выходной слой
         output = self.output_layer(x)
-
-        # if self.training:
-        #     return output
+        #hidden_state = self.h_s(x)
+        #return output,hidden_state
         return output
 
     def to(self, device):
@@ -292,6 +291,7 @@ class RNN_quantum(nn.Module):
         l = x.size(1)
         # Начальные скрытые состояния и состояния ячеек для каждого слоя
         h = [torch.zeros(x.size(0), self.hidden_size).to(self.device) for _ in range(self.num_layers)]
+        #h_s = [torch.zeros(x.size(0), self.hidden_size).to(self.device) for _ in range(self.num_layers)]
         output = torch.zeros(x.size(0), self.output_s_w).to(self.device)
        
         # Проходим по временным шагам входных данных
@@ -299,10 +299,12 @@ class RNN_quantum(nn.Module):
             if t< x.size(1):
                 input_t = x[:, t, :]  # Вход на текущем временном шаге
                 for i, layer in enumerate(self.layers):
-                    h[i] = layer(input_t, h[i])
+                    #h[i],h_s[i] = layer(input_t,h_s[i])
+                    h[i] = layer(input_t,h[i])
                     input_t = h[i] 
             else:
                 for i, layer in enumerate(self.layers_follow):
+                    #h[i],h_s[i] = layer(None, h_s[i])
                     h[i] = layer(None, h[i])
                 output[:,t - l] = self.fc(h[-1]).squeeze()
         return output
@@ -372,33 +374,33 @@ class RNNTrainer:
             'test_tube': []
         }
         self.weights_history = []
-    def create_scheduler(self):
-        """
-        Создание планировщика скорости обучения типа CosineAnnealingWarmRestarts.
-        
-        Параметры:
-        - T_0: Первый цикл перезапуска (число эпох).
-        - T_mult: Множитель для увеличения длительности каждого последующего цикла.
-        - eta_min: Минимальное значение скорости обучения.
-        
-        Возвращает:
-        - Сконфигурированный планировщик.
-        """
-        # Конфигурация планировщика
-        T_0 = 10  # Длина первого цикла (в эпохах)
-        T_mult = 2  # Множитель для увеличения длины каждого следующего цикла
-        eta_min = 1e-10  # Минимальная скорость обучения
-        
-        return torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-            optimizer=self.optimizer,
-            T_0=T_0,
-            T_mult=T_mult,
-            eta_min=eta_min
-        )
-
     # def create_scheduler(self):
-    #     # Пример создания планировщика
-    #     return optim.lr_scheduler.StepLR(self.optimizer, step_size=20, gamma=0.5)
+    #     """
+    #     Создание планировщика скорости обучения типа CosineAnnealingWarmRestarts.
+        
+    #     Параметры:
+    #     - T_0: Первый цикл перезапуска (число эпох).
+    #     - T_mult: Множитель для увеличения длительности каждого последующего цикла.
+    #     - eta_min: Минимальное значение скорости обучения.
+        
+    #     Возвращает:
+    #     - Сконфигурированный планировщик.
+    #     """
+    #     # Конфигурация планировщика
+    #     T_0 = 10  # Длина первого цикла (в эпохах)
+    #     T_mult = 2  # Множитель для увеличения длины каждого следующего цикла
+    #     eta_min = 1e-10  # Минимальная скорость обучения
+        
+    #     return torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+    #         optimizer=self.optimizer,
+    #         T_0=T_0,
+    #         T_mult=T_mult,
+    #         eta_min=eta_min
+    #     )
+
+    def create_scheduler(self):
+        # Пример создания планировщика
+        return optim.lr_scheduler.StepLR(self.optimizer, step_size=5, gamma=0.5)
     
     def add_history(self, train_metrics: dict, test_metrics: dict):
         for key in train_metrics:
@@ -408,8 +410,10 @@ class RNNTrainer:
     def train_epoch(self, X, y, batch_size):
         dataset_size = X.shape[0]
         indices = torch.randperm(dataset_size)
+        #print('1')
         X_shuffled = X[indices].to(self.device)
         y_shuffled = y[indices].to(self.device)
+        #print('2')
         
         epoch_metrics = {
             'total_loss': 0.0,
@@ -421,13 +425,17 @@ class RNNTrainer:
         n_batches = 0
         
         for i in range(0, dataset_size, batch_size):
+            #print('3')
             X_batch = X_shuffled[i:i+batch_size]
             y_batch = y_shuffled[i:i+batch_size]
+            #print('4')
             #print(y_batch.shape)
             self.optimizer.zero_grad()
             
+            #print('4')
             # В режиме train модель возвращает (predictions)
             predictions = self.model(X_batch)
+            #print('4')
             #print(predictions.shape)
             metrics = self.criterion(predictions, y_batch)
             metrics['total_loss'].backward()
@@ -517,9 +525,6 @@ class RNNTrainer:
 
 
 if __name__=='__main__':
-    a = torch.rand((2,3))
-    r = torch.rand((2,11))
-
-    rt = torch.cat([a,r],dim = 1)
-    t = rt.unfold(1,4,1).mean(dim=2)
-    print(t)
+    pass
+    
+    

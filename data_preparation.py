@@ -50,26 +50,87 @@ class PreparationDataset(Dataset):
         return self.data, self.output
 
     def PDtrain_test_split(
-        self, X: torch.Tensor, y: torch.Tensor, test_size: float = 0.33, random_state: int = 42
+        self, 
+        X: torch.Tensor, 
+        y: torch.Tensor, 
+        test_size: float = 0.33, 
+        random_state: int = 42, 
+        evenly: bool = True,
+        device = 'cpu'
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
-        Разделяет данные на обучающую и тестовую выборки.
+        Разделяет данные на обучающую и тестовую выборки с улучшенной стратификацией.
 
         Параметры:
         - X (torch.Tensor): Признаки.
         - y (torch.Tensor): Целевые значения.
         - test_size (float): Доля тестовой выборки. По умолчанию 0.33.
         - random_state (int): Seed для воспроизводимости. По умолчанию 42.
+        - evenly (bool): Флаг выравнивания количества примеров в бинах. По умолчанию True.
 
         Возвращает:
-        - X_train, X_test, y_train, y_test (torch.Tensor): Разделенные данные.
+        - Tuple[torch.Tensor]: X_train, X_test, y_train, y_test
         """
-        bin = torch.arange(start=0, end=550, step=10, requires_grad=False) + torch.tensor([1000])
-        bin_stratify = torch.bucketize(y.to('cpu'), bin)
+        from collections import defaultdict
+        
+        # Создаем бины от 0 до 550 с шагом 10
+        bin_edges = torch.arange(start=0, end=550, step=10, requires_grad=False)
+        bin_stratify = torch.bucketize(y[:,-1].cpu(), bin_edges)
 
+        X_new, y_new = X.clone(), y.clone()
+        #print(X_new)
+        # Конвертируем в numpy для sklearn
+        # X_np = X_new.cpu().numpy()
+        # y_np = y_new.cpu().numpy()
+        
+        # Разделяем данные с стратификацией
         X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=test_size, random_state=random_state, stratify=bin_stratify.numpy()
+            X_new,
+            y_new,
+            test_size=test_size,
+            random_state=random_state,
+            stratify=bin_stratify.numpy()
         )
+
+        if evenly:
+            bin_stratify = torch.bucketize(y_train[:,-1].cpu(), bin_edges)
+            # Группируем индексы по бинам
+            bin_indices = defaultdict(list)
+            for idx, bin_idx in enumerate(bin_stratify):
+                bin_indices[bin_idx.item()].append(idx)
+
+            # Находим максимальный размер бина
+            max_bin_size = max(len(indices) for indices in bin_indices.values()) if bin_indices else 0
+            scale_data = 0.6
+            # Выбираем индексы с повторениями для маленьких бинов
+            sampled_indices = []
+            for indices in bin_indices.values():
+                indices_tensor = torch.tensor(indices, dtype=torch.long)
+                # print(indices_tensor.shape[0])
+                # print(indices_tensor)
+                # Сэмплируем с заменой если нужно
+                #replace = len(indices_tensor) < max_bin_size
+                #print('replace',replace)
+                samples = torch.randint(
+                    low=0,
+                    high=indices_tensor.shape[0],
+                    size=(int(max_bin_size*scale_data),)
+                )
+                sampled_indices.append(indices_tensor[samples])
+            
+            # Собираем новые данные
+            new_indices = torch.cat(sampled_indices)
+            X_train = X_train[new_indices]
+            y_train = y_train[new_indices]
+            
+            # Обновляем стратификацию для новых данных
+        #bin_stratify = torch.bucketize(y_new[:,0].cpu(), bin_edges)
+        # Конвертируем обратно в тензоры
+        # X_train = torch.from_numpy(X_train).to(X.device)
+        # X_test = torch.from_numpy(X_test).to(X.device)
+        # y_train = torch.from_numpy(y_train).to(y.device)
+        # y_test = torch.from_numpy(y_test).to(y.device)
+
         return X_train, X_test, y_train, y_test
 
     def cur_to_cur(
@@ -279,22 +340,59 @@ def update_data_with_predictions(model: torch.nn.Module, df: pd.DataFrame, input
 
 import matplotlib.pyplot as plt
 if __name__=='__main__':
-    PARAM = (7,4,1,3)
-    window_size,num_features,downsample_step,target_window_size = PARAM
-    sample = 30
+    # PARAM = (7,4,1,3)
+    # window_size,num_features,downsample_step,target_window_size = PARAM
+    # sample = 30
     
-    data = torch.randint(1,10,(sample,num_features+1))
-    print(data)
-    PD = PreparationDataset(path= None,data= data)
-    PD.const_reshape = sample
-    X,y,df = PD.many_to_many(window_size,num_features,downsample_step,target_window_size)
-    print(X.shape)
-    print(y)
-    true_values = X[:,-1,0]
-    predictions = y[:,-1]
-    plt.figure(figsize=(12, 6), dpi=60)
-    plt.scatter(true_values,predictions, s=1, label='Предсказания модели') 
-    plt.scatter(true_values,y[:,-1], color='red', s=0.15, label='Истинные значения') 
-    plt.legend()
-    plt.show()
+    # data = torch.randint(1,10,(sample,num_features+1))
+    # print(data)
+    # PD = PreparationDataset(path= None,data= data)
+    # PD.const_reshape = sample
+    # X,y,df = PD.many_to_many(window_size,num_features,downsample_step,target_window_size)
+    # print(X.shape)
+    # print(y)
+    # true_values = X[:,-1,0]
+    # predictions = y[:,-1]
+    # plt.figure(figsize=(12, 6), dpi=60)
+    # plt.scatter(true_values,predictions, s=1, label='Предсказания модели') 
+    # plt.scatter(true_values,y[:,-1], color='red', s=0.15, label='Истинные значения') 
+    # plt.legend()
+    # plt.show()
+    import torch
+    import sys
+    import os
+    import numpy as np
 
+    import matplotlib.pyplot as plt
+    #путь к корню директории
+    BASE_DIR = os.getcwd()
+    sys.path.append(os.path.abspath(BASE_DIR))
+    
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(device)
+
+    path = BASE_DIR + '\data_all'  # Путь к данным
+    PD = PreparationDataset(path)
+
+    # параметры подготовки данных
+    window_size=100
+    num_features=9
+    downsample_step=25 # 0.003 * downsample_step = шаг данных в секундах
+    target_window_size = 20 # output size количество выходных данных для 1 примера
+    # Подготовка данных
+    X, y, df = PD.many_to_many(
+        window_size=window_size,
+        num_features=num_features,
+        downsample_step=downsample_step,
+        target_window_size=target_window_size,
+        device=device  
+    )
+
+    print('X',X.shape,'y',y.shape)
+
+    # Разделение данных на обучающую и тестовую выборки
+    X_train, X_test, y_train, y_test = PD.PDtrain_test_split(
+        X, y, test_size=0.33, random_state=42
+    )
+    print(X_train.shape, X_test.shape, y_train.shape, y_test.shape)
